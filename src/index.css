@@ -1,7 +1,12 @@
-@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,300..700;1,300..700&family=Plus+Jakarta+Sans:ital,wght@0,300..700;1,300..700&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --font-serif: "Lora", Georgia, Cambria, "Times New Roman", Times, serif;
-  --font-sans: "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --color-brand-primary: #3CB577;
+  --color-brand-accent: #9FF279;
+  --color-brand-dark: #3F3A3A;
+  --color-brand-bg: #F8F9FA;
+  --color-brand-surface: #FFFFFF;
+
+  --font-serif: "Gentium Plus", Merriweather, Georgia, serif;
+  --font-sans: "Inter", Roboto, system-ui, sans-serif;
 }

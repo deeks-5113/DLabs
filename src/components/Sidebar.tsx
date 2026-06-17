@@ -1,4 +1,6 @@
 import React from 'react';
+// @ts-ignore
+import dlabsLogo from '../../Dlabs_102.svg';
 import { 
   LayoutDashboard, 
   Settings, 
@@ -154,16 +156,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
   ];
 
   return (
-    <aside id="sidebar-navigation" className="w-72 bg-white border-r border-[#E5E2D9] text-[#3C3C3B] flex flex-col shrink-0 min-h-screen shadow-xs overflow-hidden">
+    <aside id="sidebar-navigation" className="w-72 bg-white border-r border-gray-200 text-brand-dark flex flex-col shrink-0 min-h-screen shadow-sm overflow-hidden">
       {/* Brand Header */}
-      <div className="p-5 border-b border-[#E5E2D9] flex items-center space-x-3 bg-white">
-        <div className="w-10 h-10 rounded-xl bg-[#5A5A40] flex items-center justify-center shadow-md">
-          <ShieldCheck className="w-6 h-6 text-white" />
-        </div>
-        <div>
-          <h1 className="text-base font-bold tracking-tight text-[#2D2D2B] font-sans">DLabs LIMS</h1>
-          <p className="text-[10px] text-[#9E9E96] font-mono tracking-wider uppercase">Enterprise Edition</p>
-        </div>
+      <div className="h-20 border-b border-gray-200 flex items-center px-6 bg-white justify-start">
+        <img src={dlabsLogo} alt="DLabs Logo" className="h-10 w-auto object-contain" />
       </div>
 
       {/* Navigation Layout */}
@@ -176,8 +172,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
           onClick={() => handleModuleClick('dashboard')}
           className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
             currentModule === 'dashboard'
-              ? 'bg-[#5A5A40] text-white shadow-md font-bold'
-              : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+              ? 'bg-brand-primary text-white shadow-md font-bold'
+              : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
           }`}
         >
           <LayoutDashboard size={18} className={currentModule === 'dashboard' ? 'text-white' : 'text-[#6B6B66]'} />
@@ -194,12 +190,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
             onClick={() => handleModuleClick('registration')}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
               currentModule === 'registration'
-                ? 'bg-[#5A5A40]/10 text-[#5A5A40] font-bold border border-[#5A5A40]/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
             }`}
           >
             <div className="flex items-center space-x-3">
-              <UserPlus size={18} className={currentModule === 'registration' ? 'text-[#5A5A40]' : 'text-[#6B6B66]'} />
+              <UserPlus size={18} className={currentModule === 'registration' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Registration</span>
             </div>
             {currentModule === 'registration' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -218,8 +214,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     onClick={() => setActiveSubView(sub.id)}
                     className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
                       isSubActive
-                        ? 'bg-[#5A5A40] text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                        ? 'bg-brand-primary text-white font-bold shadow-xs'
+                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
                     }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
@@ -238,12 +234,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
             onClick={() => handleModuleClick('accession')}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
               currentModule === 'accession'
-                ? 'bg-[#5A5A40]/10 text-[#5A5A40] font-bold border border-[#5A5A40]/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
             }`}
           >
             <div className="flex items-center space-x-3">
-              <Barcode size={18} className={currentModule === 'accession' ? 'text-[#5A5A40]' : 'text-[#6B6B66]'} />
+              <Barcode size={18} className={currentModule === 'accession' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Sample Accession</span>
             </div>
             {currentModule === 'accession' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -262,8 +258,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     onClick={() => setActiveSubView(sub.id)}
                     className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
                       isSubActive
-                        ? 'bg-[#5A5A40] text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                        ? 'bg-brand-primary text-white font-bold shadow-xs'
+                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
                     }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
@@ -282,12 +278,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
             onClick={() => handleModuleClick('operations')}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
               currentModule === 'operations'
-                ? 'bg-[#5A5A40]/10 text-[#5A5A40] font-bold border border-[#5A5A40]/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
             }`}
           >
             <div className="flex items-center space-x-3">
-              <FlaskConical size={18} className={currentModule === 'operations' ? 'text-[#5A5A40]' : 'text-[#6B6B66]'} />
+              <FlaskConical size={18} className={currentModule === 'operations' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Clinical Floor</span>
             </div>
             {currentModule === 'operations' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -306,8 +302,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     onClick={() => setActiveSubView(sub.id)}
                     className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
                       isSubActive
-                        ? 'bg-[#5A5A40] text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                        ? 'bg-brand-primary text-white font-bold shadow-xs'
+                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
                     }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
@@ -326,12 +322,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
             onClick={() => handleModuleClick('admin')}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
               currentModule === 'admin'
-                ? 'bg-[#5A5A40]/10 text-[#5A5A40] font-bold border border-[#5A5A40]/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
             }`}
           >
             <div className="flex items-center space-x-3">
-              <Settings size={18} className={currentModule === 'admin' ? 'text-[#5A5A40]' : 'text-[#6B6B66]'} />
+              <Settings size={18} className={currentModule === 'admin' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Admin Control</span>
             </div>
             {currentModule === 'admin' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -350,8 +346,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     onClick={() => setActiveSubView(sub.id)}
                     className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
                       isSubActive
-                        ? 'bg-[#5A5A40] text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-[#2D2D2B]'
+                        ? 'bg-brand-primary text-white font-bold shadow-xs'
+                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
                     }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
@@ -372,7 +368,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
             </span>
-            <p className="text-[10px] font-bold text-[#5A5A40] font-mono leading-none">TERMINAL ACTIVE</p>
+            <p className="text-[10px] font-bold text-brand-primary font-mono leading-none">TERMINAL ACTIVE</p>
           </div>
           <p className="text-[9px] text-[#6B6B66] mt-1.5 leading-tight">All transaction sessions verified with checksums</p>
         </div>

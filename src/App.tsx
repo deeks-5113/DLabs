@@ -84,7 +84,7 @@ function AppContent() {
   };
 
   return (
-    <div id="dl-lims-applet" className="flex h-screen w-screen overflow-hidden bg-[#FAF9F6] text-[#3C3C3B] font-sans">
+    <div id="dl-lims-applet" className="flex h-screen w-screen overflow-hidden bg-brand-bg text-brand-dark font-sans">
       
       {/* Sidebar navigation drawer with cascaded accordions */}
       <Sidebar 
@@ -107,7 +107,7 @@ function AppContent() {
         />
         
         {/* Module Render Routing */}
-        <main id="main-viewport" className="flex-1 overflow-y-auto p-8 bg-[#FAF9F6]">
+        <main id="main-viewport" className="flex-1 overflow-y-auto p-8 bg-brand-bg">
           <div className="max-w-7xl mx-auto w-full">
             {activeModule === 'dashboard' && (
               <DashboardView 

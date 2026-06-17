@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="100%" height="100%">
+  <rect x="105" y="200" width="105" height="190" fill="#3d3c3d" />
+
+  <path fill="#40ab6a" fill-rule="evenodd" d="
+    M 45 120
+    H 190
+    V 45
+    H 320
+    L 770 240
+    V 450
+    H 45
+    Z
+    M 105 200
+    H 210
+    V 390
+    H 105
+    Z
+  " />
+
+  <path fill="#93e878" fill-rule="evenodd" d="
+    M 65 140
+    H 210
+    V 65
+    H 260
+    V 430
+    H 65
+    Z
+    M 105 200
+    H 210
+    V 390
+    H 105
+    Z
+  " />
+
+  <text x="295" y="390" font-family="Georgia, 'Times New Roman', serif" font-weight="normal" font-size="240" fill="#3F3A3A" letter-spacing="-2">labs</text>
+</svg>
