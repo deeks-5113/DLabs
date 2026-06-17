@@ -10,7 +10,7 @@ import { OperationsModule } from './components/OperationsModule';
 
 function AppContent() {
   const [activeModule, setActiveModule] = useState<'dashboard' | 'registration' | 'accession' | 'operations' | 'admin'>('dashboard');
-  const { setActiveSubView, activeSubView } = useApp();
+  const { setActiveSubView, activeSubView, isLoading } = useApp();
   
   // Extra linking states
   const [adminInitialTab, setAdminInitialTab] = useState<'profile' | 'tests' | 'partners'>('profile');
@@ -82,6 +82,16 @@ function AppContent() {
       setRegistrationInitialPhone('');
     }
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center bg-[#FAF9F6] flex-col gap-4">
+        {/* A beautiful laboratory flask animation or spinner */}
+        <div className="relative w-16 h-16 border-4 border-t-[#5A5A40] border-r-transparent border-b-[#5A5A40] border-l-transparent rounded-full animate-spin"></div>
+        <p className="text-sm font-semibold text-[#5A5A40] font-mono tracking-wider animate-pulse">DLABS LIMS SECURE SYNCING...</p>
+      </div>
+    );
+  }
 
   return (
     <div id="dl-lims-applet" className="flex h-screen w-screen overflow-hidden bg-brand-bg text-brand-dark font-sans">

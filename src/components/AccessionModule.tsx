@@ -43,7 +43,11 @@ export const AccessionModule: React.FC = () => {
     b2bPartners,
     systemUsers,
     activeSubView,
-    setActiveSubView
+    setActiveSubView,
+    sampleVialSettings: sampleSettings,
+    addSampleVialSetting,
+    updateSampleVialSetting,
+    deleteSampleVialSetting
   } = useApp();
 
   type AccessionTab = 'pending_accession' | 'pending_collection' | 'accessed' | 'rejected' | 'settings';
@@ -74,16 +78,6 @@ export const AccessionModule: React.FC = () => {
   const [selectedSampleType, setSelectedSampleType] = useState('All');
   const [selectedBilledBy, setSelectedBilledBy] = useState('All');
   const [collectionStatusFilter, setCollectionStatusFilter] = useState<'All' | 'Not Collected' | 'Collected Only'>('All');
-
-  // Sample Settings Local State (CRUD)
-  const [sampleSettings, setSampleSettings] = useState<SampleSetting[]>([
-    { sr_no: 1, sample_name: "EDTA Whole Blood", sample_type: "EDTA", container_type: "Lavender Vacuum Tube" },
-    { sr_no: 2, sample_name: "Serum Separator SST", sample_type: "Serum", container_type: "Gold/Yellow Vacuum Tube" },
-    { sr_no: 3, sample_name: "Sterile Midstream Urine", sample_type: "Urine", container_type: "Sterile Collector Container" },
-    { sr_no: 4, sample_name: "Sodium Citrate Coagulation", sample_type: "Plasma", container_type: "Light Blue Vacuum Tube" },
-    { sr_no: 5, sample_name: "Heparinised Plasma", sample_type: "Plasma", container_type: "Green Tube" },
-    { sr_no: 6, sample_name: "Nasopharyngeal Swab", sample_type: "Swab", container_type: "Transport Media Swab" }
-  ]);
 
   const [editingSettingIdx, setEditingSettingIdx] = useState<number | null>(null);
   const [editSampleName, setEditSampleName] = useState('');
@@ -280,13 +274,13 @@ export const AccessionModule: React.FC = () => {
   // Sample type Settings modifiers
   const handleAddSampleSetting = () => {
     const nextSr = sampleSettings.length > 0 ? Math.max(...sampleSettings.map(s => s.sr_no)) + 1 : 1;
-    const newS: SampleSetting = {
+    const newS = {
       sr_no: nextSr,
       sample_name: editSampleName.trim() || `New Assay Tube Setup`,
       sample_type: editSampleType,
       container_type: editContainerType.trim() || "Clear PET Additive Specimen Vial"
     };
-    setSampleSettings(prev => [...prev, newS]);
+    addSampleVialSetting(newS);
     setEditSampleName('');
     setEditContainerType('');
     setIsAddingSetting(false);
@@ -302,19 +296,21 @@ export const AccessionModule: React.FC = () => {
 
   const handleSaveSampleSetting = () => {
     if (editingSettingIdx === null) return;
-    setSampleSettings(prev => prev.map((s, idx) => idx === editingSettingIdx ? {
-      ...s,
+    const originalSetting = sampleSettings[editingSettingIdx];
+    const updated = {
+      sr_no: originalSetting.sr_no,
       sample_name: editSampleName.trim(),
       sample_type: editSampleType,
       container_type: editContainerType.trim()
-    } : s));
+    };
+    updateSampleVialSetting(updated);
     setEditingSettingIdx(null);
     setEditSampleName('');
     setEditContainerType('');
   };
 
   const handleDeleteSampleSetting = (srNo: number) => {
-    setSampleSettings(prev => prev.filter(s => s.sr_no !== srNo));
+    deleteSampleVialSetting(srNo);
   };
 
   return (

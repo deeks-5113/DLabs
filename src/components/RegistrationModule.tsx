@@ -67,7 +67,11 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
     updateReportPrintStatus,
     updateEncounterStatus,
     activeSubView,
-    setActiveSubView
+    setActiveSubView,
+    appointments,
+    archivedPatientIds,
+    addAppointment,
+    toggleArchivePatient
   } = useApp();
 
   // -------------------------
@@ -76,6 +80,53 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
   const [phoneNumberQuery, setPhoneNumberQuery] = useState(initialPhone);
   const [lookupFeedback, setLookupFeedback] = useState<{ type: 'success' | 'warn' | null; message: string }>({ type: null, message: '' });
   const [isExistingPatient, setIsExistingPatient] = useState(false);
+
+  // Autocomplete suggestions state
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const suggestionsRef = React.useRef<HTMLDivElement>(null);
+
+  const suggestions = React.useMemo(() => {
+    const query = phoneNumberQuery.trim().toLowerCase();
+    if (!showSuggestions || query.length < 2) return [];
+
+    const prefixMatches: Patient[] = [];
+    const substringMatches: Patient[] = [];
+
+    patients.forEach(p => {
+      const name = p.patient_name.toLowerCase();
+      const phone = p.contact_number.toLowerCase();
+      const pid = p.patient_id.toLowerCase();
+      const mrn = p.mrn.toLowerCase();
+
+      const isPrefix = name.startsWith(query) || phone.startsWith(query) || pid.startsWith(query) || mrn.startsWith(query);
+      const isSubstring = name.includes(query) || phone.includes(query) || pid.includes(query) || mrn.includes(query);
+
+      if (isPrefix) {
+        prefixMatches.push(p);
+      } else if (isSubstring) {
+        substringMatches.push(p);
+      }
+    });
+
+    return [...prefixMatches, ...substringMatches].slice(0, 5);
+  }, [phoneNumberQuery, showSuggestions, patients]);
+
+  // Close suggestions on click outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (suggestionsRef.current && !suggestionsRef.current.contains(event.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Reset highlight index when suggestions change
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [suggestions.length]);
 
   // Demographics
   const [patientId, setPatientId] = useState('');
@@ -137,12 +188,6 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
   const [liveSuccessEncounter, setLiveSuccessEncounter] = useState<Encounter | null>(null);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
-  // Appointments state
-  const [appointments, setAppointments] = useState<any[]>([
-    { appt_id: "APP-501", patient_name: "Komal Malhotra", age: 29, gender: "Female", test_code: "TSH", appt_time: "16/06/2026 14:00", phone: "9818299101", status: "In-Progress" },
-    { appt_id: "APP-502", patient_name: "Rajesh Kumar", age: 52, gender: "Male", test_code: "LFT", appt_time: "16/06/2026 15:30", phone: "9122391029", status: "Scheduled" },
-    { appt_id: "APP-503", patient_name: "Ananya Deshmukh", age: 31, gender: "Female", test_code: "CBC", appt_time: "17/06/2026 09:00", phone: "8872109882", status: "Scheduled" }
-  ]);
   const [apptFormName, setApptFormName] = useState('');
   const [apptFormAge, setApptFormAge] = useState('');
   const [apptFormGender, setApptFormGender] = useState<'Male' | 'Female' | 'Other'>('Male');
@@ -153,9 +198,6 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
   // Active modal/popup for viewing specific patient record card
   const [selectedAuditPatient, setSelectedAuditPatient] = useState<Patient | null>(null);
   const [selectedPrintReport, setSelectedPrintReport] = useState<ReportPrintTracking | null>(null);
-
-  // Archiving flags state
-  const [archivedPatientIds, setArchivedPatientIds] = useState<string[]>([]);
 
   // Advance searching states
   const [advSearchType, setAdvSearchType] = useState<string>('');
@@ -181,22 +223,57 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
   }, [dob]);
 
   const handlePhoneInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+    const val = e.target.value.replace(/[^a-zA-Z0-9\s-]/g, '').slice(0, 30);
     setPhoneNumberQuery(val);
     if (val.length === 0) {
       setLookupFeedback({ type: null, message: '' });
+      setShowSuggestions(false);
+    } else {
+      setShowSuggestions(true);
     }
   };
 
-  const handlePatientLookup = (searchNo?: string) => {
-    const targetNo = searchNo || phoneNumberQuery;
-    if (targetNo.length < 10) {
-      setErrors(prev => ({ ...prev, lookup: "Mandatory 10-digit number required" }));
+  const handleSelectSuggestion = (p: Patient) => {
+    setPhoneNumberQuery(p.patient_name);
+    setShowSuggestions(false);
+    handlePatientLookup(p.patient_id);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev + 1) % suggestions.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setHighlightedIndex(prev => (prev - 1 + suggestions.length) % suggestions.length);
+      } else if (e.key === 'Enter') {
+        e.preventDefault();
+        handleSelectSuggestion(suggestions[highlightedIndex]);
+      } else if (e.key === 'Escape') {
+        setShowSuggestions(false);
+      }
+    }
+  };
+
+  const handlePatientLookup = (searchVal?: string) => {
+    const targetVal = searchVal || phoneNumberQuery;
+    const cleanQuery = targetVal.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (cleanQuery.length === 0) {
+      setErrors(prev => ({ ...prev, lookup: "Please enter a mobile number or Patient ID" }));
       return;
     }
     setErrors(prev => ({ ...prev, lookup: '' }));
 
-    const match = patients.find(p => p.contact_number === targetNo);
+    const match = patients.find(p => {
+      const cleanPhone = p.contact_number.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanId = p.patient_id.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanMrn = p.mrn.toLowerCase().replace(/[^a-z0-9]/g, '');
+      const cleanName = p.patient_name.toLowerCase().replace(/[^a-z0-9]/g, '');
+      
+      return cleanPhone === cleanQuery || cleanId === cleanQuery || cleanMrn === cleanQuery || cleanName === cleanQuery;
+    });
+
     if (match) {
       setIsExistingPatient(true);
       setPatientId(match.patient_id);
@@ -254,7 +331,12 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
       });
     } else {
       setIsExistingPatient(false);
-      setPatientId(`P-${1000 + patients.length + 5}`);
+      
+      const isPhone = /^\d{10}$/.test(targetVal.replace(/\D/g, ''));
+      const uniqueSuffix = 100000 + patients.length + 5;
+      const generatedId = `P-${uniqueSuffix}`;
+
+      setPatientId(generatedId);
       setPatientType('Regular');
       setMrn(`MRN-${Math.floor(100000 + Math.random() * 900000)}`);
       setNationalId('');
@@ -263,7 +345,7 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
       setGender('Male');
       setDob('');
       setAge('');
-      setContactNumber(targetNo);
+      setContactNumber(isPhone ? targetVal.replace(/\D/g, '') : '');
       setPhoneBelongsTo('Patient');
       setEmailAddress('');
       setOrganisationName('Direct Walk-In');
@@ -303,7 +385,9 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
 
       setLookupFeedback({
         type: 'warn',
-        message: "No record matching phone found. Registering new profile entry."
+        message: isPhone
+          ? "No record matching phone found. Registering new profile entry."
+          : "No record matching query found. Registering new profile entry."
       });
     }
   };
@@ -376,8 +460,9 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
       mode_of_transport: modeOfTransport
     };
 
+    const uniqueSuffix = 100000 + patients.length + 5;
     const targetPatient: Patient = {
-      patient_id: patientId || `P-${1000 + patients.length + 5}`,
+      patient_id: patientId || `P-${uniqueSuffix}`,
       patient_type: patientType,
       mrn: mrn || `MRN-${Math.floor(100000 + Math.random() * 900000)}`,
       national_id: nationalId,
@@ -467,6 +552,7 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
     setSelectedPartnerId('');
     setErrors({});
     setLiveSuccessEncounter(null);
+    setShowSuggestions(false);
   };
 
   const handleCreateAppointment = (e: React.FormEvent) => {
@@ -479,23 +565,19 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
       age: Number(apptFormAge) || 30,
       gender: apptFormGender,
       test_code: apptFormTest,
-      appt_time: apptFormDate ? new Date(apptFormDate).toLocaleString('en-GB') : new Date().toLocaleString(),
+      appt_time: apptFormDate ? new Date(apptFormDate).toISOString() : new Date().toISOString(),
       phone: apptFormPhone,
-      status: "Scheduled"
+      status: "Scheduled" as const
     };
 
-    setAppointments([...appointments, newAppt]);
+    addAppointment(newAppt);
     setApptFormName('');
     setApptFormPhone('');
     setApptFormAge('');
   };
 
   const toggleArchive = (id: string) => {
-    if (archivedPatientIds.includes(id)) {
-      setArchivedPatientIds(archivedPatientIds.filter(x => x !== id));
-    } else {
-      setArchivedPatientIds([...archivedPatientIds, id]);
-    }
+    toggleArchivePatient(id);
   };
 
   // Filter patients on Adv search
@@ -605,16 +687,47 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
                 <div className="bg-white p-5 rounded-2xl border border-[#E5E2D9] space-y-3 shadow-xs">
                   <h3 className="text-xs font-bold font-mono text-[#9E9E96] uppercase tracking-wider">Demographic lookup engine</h3>
                   <div className="flex gap-2.5">
-                    <div className="relative flex-1">
+                    <div className="relative flex-1" ref={suggestionsRef}>
                       <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#9E9E96]" size={15} />
                       <input
                         id="lookup-search"
                         type="text"
                         className="w-full pl-9 pr-4 py-2 bg-[#FAF9F6] border border-[#E5E2D9] rounded-xl text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#5A5A40]/20 text-[#2D2D2B]"
-                        placeholder="Search patient via 10-digit mobile number..."
+                        placeholder="Search patient via mobile number or 6-digit Patient ID..."
                         value={phoneNumberQuery}
                         onChange={handlePhoneInputChange}
+                        onKeyDown={handleKeyDown}
+                        onFocus={() => {
+                          if (phoneNumberQuery.trim().length >= 2) {
+                            setShowSuggestions(true);
+                          }
+                        }}
                       />
+                      
+                      {showSuggestions && suggestions.length > 0 && (
+                        <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-[#E5E2D9] rounded-xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto">
+                          <ul>
+                            {suggestions.map((p, idx) => (
+                              <li
+                                key={p.patient_id}
+                                onClick={() => handleSelectSuggestion(p)}
+                                onMouseEnter={() => setHighlightedIndex(idx)}
+                                className={`px-4 py-2.5 cursor-pointer text-xs flex justify-between items-center border-b border-[#FAF9F6] last:border-b-0 transition-colors ${
+                                  highlightedIndex === idx ? 'bg-[#FAF9F6]' : ''
+                                }`}
+                              >
+                                <div>
+                                  <div className="font-bold text-[#2D2D2B]">{p.patient_name}</div>
+                                  <div className="text-[10px] text-[#6B6B66] mt-0.5">{p.contact_number} • Sex: {p.gender} • Age: {p.age}</div>
+                                </div>
+                                <div className="text-[10px] font-mono bg-[#5A5A40]/10 text-[#5A5A40] px-2 py-0.5 rounded border border-[#5A5A40]/20 font-bold">
+                                  {p.patient_id}
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                     <button
                       id="btn-search-audit"

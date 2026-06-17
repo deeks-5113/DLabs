@@ -31,6 +31,10 @@ DROP TABLE IF EXISTS test_configs CASCADE;
 DROP TABLE IF EXISTS b2b_partners CASCADE;
 DROP TABLE IF EXISTS test_catalog CASCADE;
 DROP TABLE IF EXISTS lab_profiles CASCADE;
+DROP TABLE IF EXISTS appointments CASCADE;
+DROP TABLE IF EXISTS referring_doctors CASCADE;
+DROP TABLE IF EXISTS satellite_centers CASCADE;
+DROP TABLE IF EXISTS sample_vial_settings CASCADE;
 
 -- SECTION 2: ADMIN CONFIGURATION & MASTER TABLES
 -- ---------------------------------------------------------------------------
@@ -182,6 +186,33 @@ CREATE TABLE financial_dashboard (
 );
 COMMENT ON TABLE financial_dashboard IS 'Real-time billing counter aggregations displayed in DashboardView.';
 
+CREATE TABLE referring_doctors (
+    id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    speciality VARCHAR(100) NOT NULL,
+    clinic VARCHAR(255) NOT NULL,
+    contact VARCHAR(50) NOT NULL,
+    commission NUMERIC(5, 2) NOT NULL DEFAULT 10.00
+);
+COMMENT ON TABLE referring_doctors IS 'List of referring doctors along with their contact info and commission percentage.';
+
+CREATE TABLE satellite_centers (
+    center_id VARCHAR(50) PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    location VARCHAR(255) NOT NULL,
+    head VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Active' CHECK (status IN ('Active', 'Inactive'))
+);
+COMMENT ON TABLE satellite_centers IS 'Network of branch intake locations and their heads.';
+
+CREATE TABLE sample_vial_settings (
+    sr_no SERIAL PRIMARY KEY,
+    sample_name VARCHAR(255) NOT NULL,
+    sample_type VARCHAR(20) NOT NULL CHECK (sample_type IN ('Serum', 'EDTA', 'Urine', 'Blood', 'Plasma', 'Swab')),
+    container_type VARCHAR(255) NOT NULL
+);
+COMMENT ON TABLE sample_vial_settings IS 'Preconfigured sample vial and container types for specimen accession check-in.';
+
 
 -- SECTION 3: PATIENT REGISTRATION & INTAKE MODULE
 -- ---------------------------------------------------------------------------
@@ -239,6 +270,18 @@ CREATE TABLE patient_medical_histories (
     medical_conditions TEXT[] -- Array of persistent conditions e.g., {'Hypertension'}
 );
 COMMENT ON TABLE patient_medical_histories IS 'Clinical screening fields collected during intakes, stored as 1-1 child table.';
+
+CREATE TABLE appointments (
+    appt_id VARCHAR(50) PRIMARY KEY,
+    patient_name VARCHAR(255) NOT NULL,
+    age INTEGER NOT NULL,
+    gender VARCHAR(10) NOT NULL CHECK (gender IN ('Male', 'Female', 'Other')),
+    test_code VARCHAR(50) REFERENCES test_catalog(test_code) ON DELETE RESTRICT,
+    appt_time TIMESTAMP WITH TIME ZONE NOT NULL,
+    phone VARCHAR(50) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'Scheduled' CHECK (status IN ('Scheduled', 'In-Progress', 'Completed', 'Cancelled'))
+);
+COMMENT ON TABLE appointments IS 'Scheduled appointments from the intake calendar before standard patient folder registration.';
 
 
 -- SECTION 4: ENCOUNTERS, ORDER LOGISTICS & BILLINGS
@@ -317,10 +360,20 @@ COMMENT ON TABLE sample_required_tests IS 'Junction table detailing which test c
 
 CREATE TABLE test_results (
     result_id VARCHAR(50) PRIMARY KEY,
-    accession_no VARCHAR(50) NOT NULL REFERENCES encounters(accession_no) ON DELETE CASCADE,
-    status VARCHAR(20) NOT NULL CHECK (status IN ('Incomplete', 'Rerun', 'Completed', 'Signed')),
+    accession_no VARCHAR(50) NOT NULL
+        REFERENCES encounters(accession_no) ON DELETE CASCADE,
+    status VARCHAR(30) NOT NULL CHECK (
+        status IN (
+            'Incomplete',
+            'Partially Completed',
+            'Rerun',
+            'Completed',
+            'Signed'
+        )
+    ),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
 COMMENT ON TABLE test_results IS 'Main laboratory result files containing observations linked to accessions.';
 
 CREATE TABLE result_parameters (
@@ -418,6 +471,29 @@ INSERT INTO system_integrations (api_requests_count, webhook_triggers_count, err
 
 INSERT INTO financial_dashboard (total_revenue, amount_due, amount_paid, cash_collection, online_collection, others_collection, average_patient_rating, total_logins) VALUES 
 (245000.00, 45000.00, 200000.00, 85000.00, 110000.00, 5000.00, 4.8, 452);
+
+INSERT INTO referring_doctors (id, name, speciality, clinic, contact, commission) VALUES 
+('DR-01', 'Dr. Alok Sen', 'Cardiology', 'Max Healthcare', '9811223344', 15.00),
+('DR-02', 'Dr. Sunita Mehta', 'Endocrinology', 'Indraprastha Apollo', '9122334455', 10.00),
+('DR-03', 'Dr. Joseph Kurian', 'General Physician', 'Fortis Escorts', '8877112233', 12.00);
+
+INSERT INTO satellite_centers (center_id, name, location, head, status) VALUES 
+('CTR-101', 'DLabs Main Pathology Hub', 'South Delhi Centre', 'Dr. Meena Saxena', 'Active'),
+('CTR-102', 'DLabs Satellite Intake Point', 'West Delhi Regional Hub', 'Admin Suresh', 'Active'),
+('CTR-103', 'DLabs Diagnostics Sub-Desk', 'Swasthya Vihar Circle', 'Rider Supervisor Prem', 'Inactive');
+
+INSERT INTO sample_vial_settings (sample_name, sample_type, container_type) VALUES 
+('EDTA Whole Blood', 'EDTA', 'Lavender Vacuum Tube'),
+('Serum Separator SST', 'Serum', 'Gold/Yellow Vacuum Tube'),
+('Sterile Midstream Urine', 'Urine', 'Sterile Collector Container'),
+('Sodium Citrate Coagulation', 'Plasma', 'Light Blue Vacuum Tube'),
+('Heparinised Plasma', 'Plasma', 'Green Tube'),
+('Nasopharyngeal Swab', 'Swab', 'Transport Media Swab');
+
+INSERT INTO appointments (appt_id, patient_name, age, gender, test_code, appt_time, phone, status) VALUES 
+('APP-501', 'Komal Malhotra', 29, 'Female', 'TSH', '2026-06-18 10:00:00+05:30', '9818299101', 'In-Progress'),
+('APP-502', 'Rajesh Kumar', 52, 'Male', 'LFT', '2026-06-18 11:30:00+05:30', '9122391029', 'Scheduled'),
+('APP-503', 'Ananya Deshmukh', 31, 'Female', 'CBC', '2026-06-18 14:00:00+05:30', '8872109882', 'Scheduled');
 
 -- 8.2 Patients
 INSERT INTO patients (patient_id, patient_type, mrn, national_id, designation, patient_name, gender, date_of_birth, age, contact_number, phone_belongs_to, email, organisation, referral) VALUES 

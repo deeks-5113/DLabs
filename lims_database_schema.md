@@ -35,6 +35,7 @@ erDiagram
     TEST_RESULTS ||--|| CLINICAL_PATIENT_CASES : "tracked in queue"
     
     CENTER_DETAILS ||--|| CENTER_RESOURCES : "has branding"
+    TEST_CATALOG ||--o{ APPOINTMENTS : "scheduled under"
 ```
 
 ---
@@ -52,6 +53,7 @@ Here is the index of which pages write/read data to which PostgreSQL tables:
     5.  `encounter_tests`: Junction table listing test codes requested under this order.
     6.  `bill_settlements`: Invoice settlements, due amounts, billing source.
     7.  `report_print_tracking`: Verification logs to track if reports have been printed out and distributed.
+    8.  `appointments`: Tracks calendar scheduling inputs and appointments.
 
 ### B. Specimen Accessioning & Collection Desk (`AccessionModule.tsx`)
 *   **Module Purpose**: Assign unique barcodes to sample vials, receive collected specimens, record phlebotomy draw times, log sample rejections (hemolyzed, clotted, quantity insufficient) with custom reasons, and request redraws.
@@ -59,6 +61,7 @@ Here is the index of which pages write/read data to which PostgreSQL tables:
     1.  `samples`: Tracks individual tubes (EDTA, Serum, Urine, Plasma, Swab) collected under an accession number, barcode ids, and collection stamps.
     2.  `sample_required_tests`: Junction mapping representing which ordered tests must be analyzed from this specific vial.
     3.  `clinical_patient_cases` (writes status updates): Sets status to 'Incomplete' or 'Cancelled' based on rejection codes.
+    4.  `sample_vial_settings`: Standardized tube configurations and vacuum containers for accessioning.
 
 ### C. Clinical Pathology Operations Console (`OperationsModule.tsx`)
 *   **Module Purpose**: Display waiting lists by status (Incomplete, Partially Completed, Reruns, emergency STATs), enter observed parameter numbers, run automated abnormal flag checks, record pathologist sign-off logs, and display Turnaround Time (TAT) analytics.
@@ -79,6 +82,8 @@ Here is the index of which pages write/read data to which PostgreSQL tables:
     7.  `system_users`: Registered lab personnel accounts and authorization roles.
     8.  `system_integrations`: Outbound webhook logs and error counts.
     9.  `financial_dashboard`: Singleton tracking daily revenue indicators.
+    10. `referring_doctors`: Commission rates and clinic details for affiliated physicians.
+    11. `satellite_centers`: External clinical intake networks and location configurations.
 
 ---
 

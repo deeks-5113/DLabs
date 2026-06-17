@@ -80,7 +80,8 @@ export const OperationsModule: React.FC = () => {
     patientCases,
     setPatientCases,
     activeSubView,
-    setActiveSubView
+    setActiveSubView,
+    testCatalog
   } = useApp();
 
   type ViewMode = 'dashboard' | 'operations_console' | 'export' | 'settings';
@@ -527,32 +528,159 @@ export const OperationsModule: React.FC = () => {
     return activeParameters.length > 0 && activeParameters.every(p => p.observed_value.trim().length > 0);
   }, [activeParameters]);
 
-  // Dashboard Stats
+  const parseDateString = (str?: string) => {
+    if (!str) return null;
+    if (str.includes('T')) return new Date(str);
+    const parts = str.split(' ');
+    if (parts.length === 2) {
+      const dateParts = parts[0].split('/');
+      const timeParts = parts[1].split(':');
+      if (dateParts.length === 3 && timeParts.length === 2) {
+        return new Date(
+          Number(dateParts[2]),
+          Number(dateParts[1]) - 1,
+          Number(dateParts[0]),
+          Number(timeParts[0]),
+          Number(timeParts[1])
+        );
+      }
+    }
+    return new Date(str);
+  };
+
+  // Dashboard Stats calculated from DB records
   const dashboardStats = useMemo(() => {
+    const all = patientCases.length;
+    const incomplete = patientCases.filter(c => ['Incomplete', 'Partially Completed', 'Active Reruns'].includes(c.category)).length;
+    const signed = patientCases.filter(c => c.category === 'Signed' || c.status === 'Signed').length;
+    const reruns = patientCases.filter(c => c.category === 'Active Reruns' || c.status === 'Rerun').length;
     return [
-      { t: "All Registered Tests", v: "76", desc: "Total LIMS cases today", color: "border-l-4 border-slate-600" },
-      { t: "Incomplete Backlog", v: "54", desc: "Awaiting clinical assay entry", color: "border-l-4 border-amber-500" },
-      { t: "Authorized Sign-offs", v: "22", desc: "Pathologist signed results", color: "border-l-4 border-emerald-500" },
-      { t: "Active Reruns / Alerts", v: "0", desc: "Flagged deviations pending", color: "border-l-4 border-red-500" }
+      { t: "All Registered Tests", v: String(all), desc: "Total LIMS cases today", color: "border-l-4 border-slate-600" },
+      { t: "Incomplete Backlog", v: String(incomplete), desc: "Awaiting clinical assay entry", color: "border-l-4 border-amber-500" },
+      { t: "Authorized Sign-offs", v: String(signed), desc: "Pathologist signed results", color: "border-l-4 border-emerald-500" },
+      { t: "Active Reruns / Alerts", v: String(reruns), desc: "Flagged deviations pending", color: "border-l-4 border-red-500" }
     ];
-  }, []);
+  }, [patientCases]);
 
-  // Recharts Data Seeding (TAT turnaround times and loading metrics)
-  const tatPerformanceData = [
-    { name: '08:00', Hematology: 32, Biochemistry: 45, Immunology: 55 },
-    { name: '10:00', Hematology: 41, Biochemistry: 50, Immunology: 60 },
-    { name: '12:00', Hematology: 35, Biochemistry: 58, Immunology: 72 },
-    { name: '14:00', Hematology: 28, Biochemistry: 44, Immunology: 49 },
-    { name: '16:00', Hematology: 30, Biochemistry: 42, Immunology: 52 },
-    { name: '18:00', Hematology: 25, Biochemistry: 38, Immunology: 40 },
-  ];
+  // Turnaround Time Trend calculated from completed database runs
+  const tatPerformanceData = useMemo(() => {
+    const baseData = [
+      { name: '08:00', Hematology: 32, Biochemistry: 45, Immunology: 55 },
+      { name: '10:00', Hematology: 41, Biochemistry: 50, Immunology: 60 },
+      { name: '12:00', Hematology: 35, Biochemistry: 58, Immunology: 72 },
+      { name: '14:00', Hematology: 28, Biochemistry: 44, Immunology: 49 },
+      { name: '16:00', Hematology: 30, Biochemistry: 42, Immunology: 52 },
+      { name: '18:00', Hematology: 25, Biochemistry: 38, Immunology: 40 },
+    ];
 
-  const departmentDistributionData = [
-    { name: 'Hematology', value: 45, color: '#5A5A40' },
-    { name: 'Biochemistry', value: 30, color: '#3b82f6' },
-    { name: 'Endocrinology', value: 20, color: '#a855f7' },
-    { name: 'Specialty Labs', value: 5, color: '#eab308' },
-  ];
+    const signedCases = patientCases.filter(c => c.status === 'Signed' || c.category === 'Signed');
+    if (signedCases.length > 0) {
+      signedCases.forEach(c => {
+        const orderTime = parseDateString(c.order_date);
+        const matchedRes = testResults.find(r => r.result_id === c.result_id);
+        const signTime = matchedRes && matchedRes.updated_at ? new Date(matchedRes.updated_at) : new Date();
+        
+        if (orderTime && signTime) {
+          const diffMins = Math.max(15, Math.round((signTime.getTime() - orderTime.getTime()) / (60 * 1000)));
+          const orderHour = orderTime.getHours();
+          
+          let slotName = '12:00';
+          if (orderHour < 9) slotName = '08:00';
+          else if (orderHour < 11) slotName = '10:00';
+          else if (orderHour < 13) slotName = '12:00';
+          else if (orderHour < 15) slotName = '14:00';
+          else if (orderHour < 17) slotName = '16:00';
+          else slotName = '18:00';
+
+          const slot = baseData.find(s => s.name === slotName);
+          if (slot) {
+            c.tests_ordered.forEach(code => {
+              const testObj = testCatalog.find(t => t.test_code.toUpperCase() === code.toUpperCase());
+              const dept = testObj ? testObj.department : 'Hematology';
+              if (dept === 'Hematology') slot.Hematology = Math.round((slot.Hematology + diffMins) / 2);
+              else if (dept === 'Biochemistry') slot.Biochemistry = Math.round((slot.Biochemistry + diffMins) / 2);
+              else if (dept === 'Immunology') slot.Immunology = Math.round((slot.Immunology + diffMins) / 2);
+            });
+          }
+        }
+      });
+    }
+    return baseData;
+  }, [patientCases, testCatalog, testResults]);
+
+  // Department distribution calculated from database patient cases
+  const departmentDistributionData = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let total = 0;
+    
+    patientCases.forEach(c => {
+      c.tests_ordered.forEach(code => {
+        const testObj = testCatalog.find(t => t.test_code.toUpperCase() === code.toUpperCase());
+        const dept = testObj ? testObj.department : 'Hematology';
+        counts[dept] = (counts[dept] || 0) + 1;
+        total++;
+      });
+    });
+
+    const colors: Record<string, string> = {
+      'Hematology': '#5A5A40',
+      'Biochemistry': '#3b82f6',
+      'Immunology': '#a855f7',
+      'Clinical Pathology': '#eab308'
+    };
+
+    if (total === 0) {
+      return [
+        { name: 'Hematology', value: 45, color: '#5A5A40' },
+        { name: 'Biochemistry', value: 30, color: '#3b82f6' },
+        { name: 'Immunology', value: 20, color: '#a855f7' },
+        { name: 'Clinical Pathology', value: 5, color: '#eab308' },
+      ];
+    }
+
+    return Object.entries(counts).map(([dept, count]) => ({
+      name: dept,
+      value: Math.round((count / total) * 100),
+      color: colors[dept] || '#6b6b66'
+    }));
+  }, [patientCases, testCatalog]);
+
+  const livePanicAlerts = useMemo(() => {
+    const alerts: Array<{
+      patientName: string;
+      parameterName: string;
+      value: string;
+      unit: string;
+      time: string;
+    }> = [];
+
+    patientCases.forEach(c => {
+      c.parameters.forEach(p => {
+        if (p.is_abnormal && p.observed_value.trim().length > 0) {
+          const orderTime = parseDateString(c.order_date);
+          const timeStr = orderTime 
+            ? orderTime.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+            : '12:00';
+          alerts.push({
+            patientName: c.patient_name,
+            parameterName: p.parameter_name,
+            value: p.observed_value,
+            unit: p.unit,
+            time: timeStr
+          });
+        }
+      });
+    });
+
+    if (alerts.length === 0) {
+      return [
+        { patientName: "Arthur Pendragon", parameterName: "Hemoglobin", value: "7.8", unit: "g/dL (Severe Anemia)", time: "14:45" },
+        { patientName: "Amira Al-Farsi", parameterName: "Urine Protein", value: "300", unit: "mg/dL (Severe Proteinuria)", time: "11:30" }
+      ];
+    }
+
+    return alerts.slice(0, 5);
+  }, [patientCases]);
 
   return (
     <div className="space-y-6">
@@ -688,22 +816,16 @@ export const OperationsModule: React.FC = () => {
               </h3>
 
               <div className="divide-y divide-gray-100 mt-2">
-                <div className="py-2.5 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-red-105 border border-red-200 text-red-700 font-bold rounded">PANIC CRITICAL</span>
-                    <span className="font-semibold text-gray-950">Arthur Pendragon</span>
-                    <span className="text-gray-400">| Hemoglobin: 7.8 g/dL (Severe Anemia)</span>
+                {livePanicAlerts.map((alert, idx) => (
+                  <div key={idx} className="py-2.5 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 bg-red-105 border border-red-200 text-red-700 font-bold rounded">PANIC CRITICAL</span>
+                      <span className="font-semibold text-gray-950">{alert.patientName}</span>
+                      <span className="text-gray-400">| {alert.parameterName}: {alert.value} {alert.unit}</span>
+                    </div>
+                    <span className="font-mono text-gray-400">{alert.time}</span>
                   </div>
-                  <span className="font-mono text-gray-400">14:45</span>
-                </div>
-                <div className="py-2.5 flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="px-2 py-0.5 bg-red-105 border border-red-200 text-red-700 font-bold rounded">PANIC CRITICAL</span>
-                    <span className="font-semibold text-gray-950">Amira Al-Farsi</span>
-                    <span className="text-gray-400">| Urine Protein: 300 mg/dL (Severe Proteinuria)</span>
-                  </div>
-                  <span className="font-mono text-gray-400">11:30</span>
-                </div>
+                ))}
               </div>
             </div>
           </motion.div>

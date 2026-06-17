@@ -295,3 +295,39 @@ export interface ClinicalPatientCase {
   outsource_center?: string;
 }
 
+export interface Appointment {
+  appt_id: string;
+  patient_name: string;
+  age: number;
+  gender: 'Male' | 'Female' | 'Other';
+  test_code: string;
+  appt_time: string;
+  phone: string;
+  status: 'Scheduled' | 'In-Progress' | 'Completed' | 'Cancelled';
+}
+
+export interface ReferringDoctor {
+  id: string;
+  name: string;
+  speciality: string;
+  clinic: string;
+  contact: string;
+  commission: number;
+}
+
+export interface SatelliteCenter {
+  center_id: string;
+  name: string;
+  location: string;
+  head: string;
+  status: 'Active' | 'Inactive';
+}
+
+export interface SampleSetting {
+  sr_no: number;
+  sample_name: string;
+  sample_type: string;
+  container_type: string;
+}
+
+

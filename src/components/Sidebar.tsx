@@ -44,16 +44,37 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
   const { activeSubView, setActiveSubView, encounters, samples, patientCases, currentLanguage } = useApp();
   const t = translations[currentLanguage];
 
+  const [expandedModule, setExpandedModule] = React.useState<'registration' | 'accession' | 'operations' | 'admin' | null>(
+    currentModule !== 'dashboard' ? currentModule : null
+  );
+
+  React.useEffect(() => {
+    if (currentModule !== 'dashboard') {
+      setExpandedModule(currentModule);
+    }
+  }, [currentModule]);
+
   const handleModuleClick = (module: 'dashboard' | 'registration' | 'accession' | 'operations' | 'admin') => {
-    onChangeModule(module);
-    if (module === 'registration') {
-      setActiveSubView('registration-billing');
-    } else if (module === 'admin') {
-      setActiveSubView('account-overview');
-    } else if (module === 'accession') {
-      setActiveSubView('accession-pending-accession');
-    } else if (module === 'operations') {
-      setActiveSubView('ops-dashboard');
+    if (module === 'dashboard') {
+      onChangeModule(module);
+      setExpandedModule(null);
+      return;
+    }
+
+    if (expandedModule === module) {
+      setExpandedModule(null);
+    } else {
+      setExpandedModule(module);
+      onChangeModule(module);
+      if (module === 'registration') {
+        setActiveSubView('registration-billing');
+      } else if (module === 'admin') {
+        setActiveSubView('account-overview');
+      } else if (module === 'accession') {
+        setActiveSubView('accession-pending-accession');
+      } else if (module === 'operations') {
+        setActiveSubView('ops-dashboard');
+      }
     }
   };
 
@@ -198,10 +219,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
               <UserPlus size={18} className={currentModule === 'registration' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Registration</span>
             </div>
-            {currentModule === 'registration' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {expandedModule === 'registration' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
 
-          {currentModule === 'registration' && (
+          {expandedModule === 'registration' && (
             <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-72 overflow-y-auto">
               {registrationSubitems.map((sub) => {
                 const SubIcon = sub.icon;
@@ -242,10 +263,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
               <Barcode size={18} className={currentModule === 'accession' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Sample Accession</span>
             </div>
-            {currentModule === 'accession' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {expandedModule === 'accession' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
 
-          {currentModule === 'accession' && (
+          {expandedModule === 'accession' && (
             <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-72 overflow-y-auto">
               {accessionSubitems.map((sub) => {
                 const SubIcon = sub.icon;
@@ -286,10 +307,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
               <FlaskConical size={18} className={currentModule === 'operations' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Clinical Floor</span>
             </div>
-            {currentModule === 'operations' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {expandedModule === 'operations' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
 
-          {currentModule === 'operations' && (
+          {expandedModule === 'operations' && (
             <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
               {operationsSubitems.map((sub) => {
                 const SubIcon = sub.icon;
@@ -330,10 +351,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
               <Settings size={18} className={currentModule === 'admin' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
               <span className="text-sm">Admin Control</span>
             </div>
-            {currentModule === 'admin' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            {expandedModule === 'admin' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
 
-          {currentModule === 'admin' && (
+          {expandedModule === 'admin' && (
             <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
               {adminSubitems.map((sub) => {
                 const SubIcon = sub.icon;

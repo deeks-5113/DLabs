@@ -46,7 +46,11 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'profile'
     addPartner,
     activeSubView,
     setActiveSubView,
-    currentLanguage
+    currentLanguage,
+    referringDoctors: doctorsList,
+    satelliteCenters: centersList,
+    addReferringDoctor,
+    addSatelliteCenter
   } = useApp();
   const t = translations[currentLanguage];
 
@@ -78,11 +82,6 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'profile'
   const [testSuccess, setTestSuccess] = useState(false);
 
   // Doctor Form
-  const [doctorsList, setDoctorsList] = useState<any[]>([
-    { id: 'DR-01', name: 'Dr. Alok Sen', speciality: 'Cardiology', clinic: 'Max Healthcare', contact: '9811223344', commission: 15 },
-    { id: 'DR-02', name: 'Dr. Sunita Mehta', speciality: 'Endocrinology', clinic: 'Indraprastha Apollo', contact: '9122334455', commission: 10 },
-    { id: 'DR-03', name: 'Dr. Joseph Kurian', speciality: 'General Physician', clinic: 'Fortis Escorts', contact: '8877112233', commission: 12 }
-  ]);
   const [docName, setDocName] = useState('');
   const [docSpec, setDocSpec] = useState('');
   const [docClinic, setDocClinic] = useState('');
@@ -90,11 +89,6 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'profile'
   const [docComm, setDocComm] = useState('10');
 
   // Multi-center states
-  const [centersList, setCentersList] = useState<any[]>([
-    { center_id: 'CTR-101', name: 'DLabs Main Pathology Hub', location: 'South Delhi Centre', head: 'Dr. Meena Saxena', status: 'Active' },
-    { center_id: 'CTR-102', name: 'DLabs Satellite Intake Point', location: 'West Delhi Regional Hub', head: 'Admin Suresh', status: 'Active' },
-    { center_id: 'CTR-103', name: 'DLabs Diagnostics Sub-Desk', location: 'Swasthya Vihar Circle', head: 'Rider Supervisor Prem', status: 'Inactive' }
-  ]);
   const [addCenterName, setAddCenterName] = useState('');
   const [addCenterLoc, setAddCenterLoc] = useState('');
   const [addCenterHead, setAddCenterHead] = useState('');
@@ -181,7 +175,7 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'profile'
       contact: docPhone,
       commission: Number(docComm)
     };
-    setDoctorsList([...doctorsList, newD]);
+    addReferringDoctor(newD);
     setDocName('');
     setDocPhone('');
     setDocSpec('');
@@ -197,9 +191,9 @@ export const AdminModule: React.FC<AdminModuleProps> = ({ initialTab = 'profile'
       name: addCenterName,
       location: addCenterLoc || 'Deluxe Room Ward',
       head: addCenterHead || 'Phleb Supervisor',
-      status: 'Active'
+      status: 'Active' as const
     };
-    setCentersList([...centersList, newC]);
+    addSatelliteCenter(newC);
     setAddCenterName('');
     setAddCenterLoc('');
     setAddCenterHead('');

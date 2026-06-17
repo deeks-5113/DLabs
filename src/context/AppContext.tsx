@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../utils/supabaseClient';
 import { 
   TestCatalog, 
   B2B_Partner, 
@@ -19,7 +20,11 @@ import {
   Sample,
   TestResult,
   ResultParameter,
-  ClinicalPatientCase
+  ClinicalPatientCase,
+  Appointment,
+  ReferringDoctor,
+  SatelliteCenter,
+  SampleSetting
 } from '../types';
 
 interface AppContextType {
@@ -47,8 +52,17 @@ interface AppContextType {
   patientCases: ClinicalPatientCase[];
   setPatientCases: React.Dispatch<React.SetStateAction<ClinicalPatientCase[]>>;
 
+  // Newly Synced structures
+  appointments: Appointment[];
+  referringDoctors: ReferringDoctor[];
+  satelliteCenters: SatelliteCenter[];
+  sampleVialSettings: SampleSetting[];
+  archivedPatientIds: string[];
+
   activeSubView: string;
   setActiveSubView: (view: string) => void;
+
+  isLoading: boolean;
 
   updateLabProfile: (profile: LabProfile) => void;
   addTest: (test: TestCatalog) => void;
@@ -89,6 +103,16 @@ interface AppContextType {
   addSystemUser: (user: SystemUser) => void;
   updateSystemIntegrations: (integrations: SystemIntegrations) => void;
 
+  // Sync methods for new tables
+  addAppointment: (appt: Appointment) => Promise<void>;
+  updateAppointmentStatus: (id: string, status: Appointment['status']) => Promise<void>;
+  addReferringDoctor: (doc: ReferringDoctor) => Promise<void>;
+  addSatelliteCenter: (center: SatelliteCenter) => Promise<void>;
+  addSampleVialSetting: (setting: SampleSetting) => Promise<void>;
+  updateSampleVialSetting: (setting: SampleSetting) => Promise<void>;
+  deleteSampleVialSetting: (srNo: number) => Promise<void>;
+  toggleArchivePatient: (id: string) => Promise<void>;
+
   searchGlobal: (query: string) => Array<{
     type: 'patient' | 'accession' | 'partner' | 'test' | 'bill';
     id: string;
@@ -102,6 +126,33 @@ interface AppContextType {
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
+
+const initialAppointments: Appointment[] = [
+  { appt_id: "APP-501", patient_name: "Komal Malhotra", age: 29, gender: "Female", test_code: "TSH", appt_time: new Date().toISOString(), phone: "9818299101", status: "In-Progress" },
+  { appt_id: "APP-502", patient_name: "Rajesh Kumar", age: 52, gender: "Male", test_code: "LFT", appt_time: new Date().toISOString(), phone: "9122391029", status: "Scheduled" },
+  { appt_id: "APP-503", patient_name: "Ananya Deshmukh", age: 31, gender: "Female", test_code: "CBC", appt_time: new Date().toISOString(), phone: "8872109882", status: "Scheduled" }
+];
+
+const initialReferringDoctors: ReferringDoctor[] = [
+  { id: 'DR-01', name: 'Dr. Alok Sen', speciality: 'Cardiology', clinic: 'Max Healthcare', contact: '9811223344', commission: 15 },
+  { id: 'DR-02', name: 'Dr. Sunita Mehta', speciality: 'Endocrinology', clinic: 'Indraprastha Apollo', contact: '9122334455', commission: 10 },
+  { id: 'DR-03', name: 'Dr. Joseph Kurian', speciality: 'General Physician', clinic: 'Fortis Escorts', contact: '8877112233', commission: 12 }
+];
+
+const initialSatelliteCenters: SatelliteCenter[] = [
+  { center_id: 'CTR-101', name: 'DLabs Main Pathology Hub', location: 'South Delhi Centre', head: 'Dr. Meena Saxena', status: 'Active' },
+  { center_id: 'CTR-102', name: 'DLabs Satellite Intake Point', location: 'West Delhi Regional Hub', head: 'Admin Suresh', status: 'Active' },
+  { center_id: 'CTR-103', name: 'DLabs Diagnostics Sub-Desk', location: 'Swasthya Vihar Circle', head: 'Rider Supervisor Prem', status: 'Inactive' }
+];
+
+const initialSampleVialSettings: SampleSetting[] = [
+  { sr_no: 1, sample_name: "EDTA Whole Blood", sample_type: "EDTA", container_type: "Lavender Vacuum Tube" },
+  { sr_no: 2, sample_name: "Serum Separator SST", sample_type: "Serum", container_type: "Gold/Yellow Vacuum Tube" },
+  { sr_no: 3, sample_name: "Sterile Midstream Urine", sample_type: "Urine", container_type: "Sterile Collector Container" },
+  { sr_no: 4, sample_name: "Sodium Citrate Coagulation", sample_type: "Plasma", container_type: "Light Blue Vacuum Tube" },
+  { sr_no: 5, sample_name: "Heparinised Plasma", sample_type: "Plasma", container_type: "Green Tube" },
+  { sr_no: 6, sample_name: "Nasopharyngeal Swab", sample_type: "Swab", container_type: "Transport Media Swab" }
+];
 
 // Initial Static Seeding Data based on re-did structures
 const initialLabProfile: LabProfile = {
@@ -730,108 +781,38 @@ const initialPatientCases: ClinicalPatientCase[] = [
 ];
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [labProfile, setLabProfile] = useState<LabProfile>(() => {
-    const saved = localStorage.getItem('dlabs_lab_profile');
-    return saved ? JSON.parse(saved) : initialLabProfile;
+  const [labProfile, setLabProfile] = useState<LabProfile>(initialLabProfile);
+  const [testCatalog, setTestCatalog] = useState<TestCatalog[]>(initialTestCatalog);
+  const [b2bPartners, setB2BPartners] = useState<B2B_Partner[]>(initialB2BPartners);
+  const [patients, setPatients] = useState<Patient[]>(initialPatients);
+  const [encounters, setEncounters] = useState<Encounter[]>(initialEncounters);
+  const [billSettlements, setBillSettlements] = useState<BillSettlement[]>(initialBillSettlements);
+  const [reportPrints, setReportPrints] = useState<ReportPrintTracking[]>(initialReportPrints);
+  const [testConfigs, setTestConfigs] = useState<TestConfig[]>(initialTestConfigs);
+  const [billSettings, setBillSettings] = useState<BillSettings>(initialBillSettings);
+  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings>(initialInvoiceSettings);
+  const [financialDashboard, setFinancialDashboard] = useState<FinancialDashboard>(initialFinancialDashboard);
+  const [priceLists, setPriceLists] = useState<PriceList[]>(initialPriceLists);
+  const [centerDetails, setCenterDetails] = useState<CenterDetails>(initialCenterDetails);
+  const [centerResources, setCenterResources] = useState<CenterResources>(initialCenterResources);
+  const [systemUsers, setSystemUsers] = useState<SystemUser[]>(initialSystemUsers);
+  const [systemIntegrations, setSystemIntegrations] = useState<SystemIntegrations>(initialSystemIntegrations);
+  
+  const [samples, setSamples] = useState<Sample[]>(initialSamples);
+  const [testResults, setTestResults] = useState<TestResult[]>(initialTestResults);
+  const [resultParameters, setResultParameters] = useState<ResultParameter[]>(initialResultParameters);
+  const [patientCases, setPatientCases] = useState<ClinicalPatientCase[]>(initialPatientCases);
+
+  const [appointments, setAppointments] = useState<Appointment[]>(initialAppointments);
+  const [referringDoctors, setReferringDoctors] = useState<ReferringDoctor[]>(initialReferringDoctors);
+  const [satelliteCenters, setSatelliteCenters] = useState<SatelliteCenter[]>(initialSatelliteCenters);
+  const [sampleVialSettings, setSampleVialSettings] = useState<SampleSetting[]>(initialSampleVialSettings);
+  const [archivedPatientIds, setArchivedPatientIds] = useState<string[]>(() => {
+    const saved = localStorage.getItem('dlabs_archived_patients');
+    return saved ? JSON.parse(saved) : [];
   });
 
-  const [testCatalog, setTestCatalog] = useState<TestCatalog[]>(() => {
-    const saved = localStorage.getItem('dlabs_test_catalog');
-    return saved ? JSON.parse(saved) : initialTestCatalog;
-  });
-
-  const [b2bPartners, setB2BPartners] = useState<B2B_Partner[]>(() => {
-    const saved = localStorage.getItem('dlabs_b2b_partners');
-    return saved ? JSON.parse(saved) : initialB2BPartners;
-  });
-
-  const [patients, setPatients] = useState<Patient[]>(() => {
-    const saved = localStorage.getItem('dlabs_patients_v2');
-    return saved ? JSON.parse(saved) : initialPatients;
-  });
-
-  const [encounters, setEncounters] = useState<Encounter[]>(() => {
-    const saved = localStorage.getItem('dlabs_encounters_v2');
-    return saved ? JSON.parse(saved) : initialEncounters;
-  });
-
-  const [billSettlements, setBillSettlements] = useState<BillSettlement[]>(() => {
-    const saved = localStorage.getItem('dlabs_bill_settlements');
-    return saved ? JSON.parse(saved) : initialBillSettlements;
-  });
-
-  const [reportPrints, setReportPrints] = useState<ReportPrintTracking[]>(() => {
-    const saved = localStorage.getItem('dlabs_report_prints');
-    return saved ? JSON.parse(saved) : initialReportPrints;
-  });
-
-  const [testConfigs, setTestConfigs] = useState<TestConfig[]>(() => {
-    const saved = localStorage.getItem('dlabs_test_configs');
-    return saved ? JSON.parse(saved) : initialTestConfigs;
-  });
-
-  const [billSettings, setBillSettings] = useState<BillSettings>(() => {
-    const saved = localStorage.getItem('dlabs_bill_settings');
-    return saved ? JSON.parse(saved) : initialBillSettings;
-  });
-
-  const [invoiceSettings, setInvoiceSettings] = useState<InvoiceSettings>(() => {
-    const saved = localStorage.getItem('dlabs_invoice_settings');
-    return saved ? JSON.parse(saved) : initialInvoiceSettings;
-  });
-
-  const [financialDashboard, setFinancialDashboard] = useState<FinancialDashboard>(() => {
-    const saved = localStorage.getItem('dlabs_financial_dashboard');
-    return saved ? JSON.parse(saved) : initialFinancialDashboard;
-  });
-
-  const [priceLists, setPriceLists] = useState<PriceList[]>(() => {
-    const saved = localStorage.getItem('dlabs_price_lists');
-    return saved ? JSON.parse(saved) : initialPriceLists;
-  });
-
-  const [centerDetails, setCenterDetails] = useState<CenterDetails>(() => {
-    const saved = localStorage.getItem('dlabs_center_details');
-    return saved ? JSON.parse(saved) : initialCenterDetails;
-  });
-
-  const [centerResources, setCenterResources] = useState<CenterResources>(() => {
-    const saved = localStorage.getItem('dlabs_center_resources');
-    return saved ? JSON.parse(saved) : initialCenterResources;
-  });
-
-  const [systemUsers, setSystemUsers] = useState<SystemUser[]>(() => {
-    const saved = localStorage.getItem('dlabs_system_users');
-    return saved ? JSON.parse(saved) : initialSystemUsers;
-  });
-
-  const [systemIntegrations, setSystemIntegrations] = useState<SystemIntegrations>(() => {
-    const saved = localStorage.getItem('dlabs_system_integrations');
-    return saved ? JSON.parse(saved) : initialSystemIntegrations;
-  });
-
-  // Phase 2 states
-  const [samples, setSamples] = useState<Sample[]>(() => {
-    const saved = localStorage.getItem('dlabs_samples');
-    return saved ? JSON.parse(saved) : initialSamples;
-  });
-
-  const [testResults, setTestResults] = useState<TestResult[]>(() => {
-    const saved = localStorage.getItem('dlabs_test_results');
-    return saved ? JSON.parse(saved) : initialTestResults;
-  });
-
-  const [resultParameters, setResultParameters] = useState<ResultParameter[]>(() => {
-    const saved = localStorage.getItem('dlabs_result_parameters');
-    return saved ? JSON.parse(saved) : initialResultParameters;
-  });
-
-  const [patientCases, setPatientCases] = useState<ClinicalPatientCase[]>(() => {
-    const saved = localStorage.getItem('dlabs_patient_cases');
-    return saved ? JSON.parse(saved) : initialPatientCases;
-  });
-
-  // Keep track of active secondary views requested by user
+  const [isLoading, setIsLoading] = useState(true);
   const [activeSubView, setActiveSubView] = useState<string>('registration-billing');
 
   const [currentLanguage, setCurrentLanguage] = useState<'en' | 'te' | 'hi'>(() => {
@@ -844,40 +825,549 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     localStorage.setItem('dlabs_language', lang);
   };
 
-  // Persistence triggers
-  useEffect(() => { localStorage.setItem('dlabs_lab_profile', JSON.stringify(labProfile)); }, [labProfile]);
-  useEffect(() => { localStorage.setItem('dlabs_test_catalog', JSON.stringify(testCatalog)); }, [testCatalog]);
-  useEffect(() => { localStorage.setItem('dlabs_b2b_partners', JSON.stringify(b2bPartners)); }, [b2bPartners]);
-  useEffect(() => { localStorage.setItem('dlabs_patients_v2', JSON.stringify(patients)); }, [patients]);
-  useEffect(() => { localStorage.setItem('dlabs_encounters_v2', JSON.stringify(encounters)); }, [encounters]);
-  useEffect(() => { localStorage.setItem('dlabs_bill_settlements', JSON.stringify(billSettlements)); }, [billSettlements]);
-  useEffect(() => { localStorage.setItem('dlabs_report_prints', JSON.stringify(reportPrints)); }, [reportPrints]);
-  useEffect(() => { localStorage.setItem('dlabs_test_configs', JSON.stringify(testConfigs)); }, [testConfigs]);
-  useEffect(() => { localStorage.setItem('dlabs_bill_settings', JSON.stringify(billSettings)); }, [billSettings]);
-  useEffect(() => { localStorage.setItem('dlabs_invoice_settings', JSON.stringify(invoiceSettings)); }, [invoiceSettings]);
-  useEffect(() => { localStorage.setItem('dlabs_financial_dashboard', JSON.stringify(financialDashboard)); }, [financialDashboard]);
-  useEffect(() => { localStorage.setItem('dlabs_price_lists', JSON.stringify(priceLists)); }, [priceLists]);
-  useEffect(() => { localStorage.setItem('dlabs_center_details', JSON.stringify(centerDetails)); }, [centerDetails]);
-  useEffect(() => { localStorage.setItem('dlabs_center_resources', JSON.stringify(centerResources)); }, [centerResources]);
-  useEffect(() => { localStorage.setItem('dlabs_system_users', JSON.stringify(systemUsers)); }, [systemUsers]);
-  useEffect(() => { localStorage.setItem('dlabs_system_integrations', JSON.stringify(systemIntegrations)); }, [systemIntegrations]);
-  useEffect(() => { localStorage.setItem('dlabs_samples', JSON.stringify(samples)); }, [samples]);
-  useEffect(() => { localStorage.setItem('dlabs_test_results', JSON.stringify(testResults)); }, [testResults]);
-  useEffect(() => { localStorage.setItem('dlabs_result_parameters', JSON.stringify(resultParameters)); }, [resultParameters]);
-  useEffect(() => { localStorage.setItem('dlabs_patient_cases', JSON.stringify(patientCases)); }, [patientCases]);
+  // 1. Initial Load & Seed logic from Supabase
+  useEffect(() => {
+    async function initSupabase() {
+      try {
+        // Fetch test catalog first to check if database has been initialized/seeded
+        const { data: testCatData, error: catError } = await supabase.from('test_catalog').select('*');
+        if (catError) throw catError;
 
-  const updateLabProfile = (profile: LabProfile) => {
+        // Auto-seed the 4 new tables if they are empty
+        try {
+          const { data: apptsData } = await supabase.from('appointments').select('appt_id').limit(1);
+          if (!apptsData || apptsData.length === 0) {
+            await supabase.from('appointments').insert(initialAppointments.map(a => ({
+              appt_id: a.appt_id,
+              patient_name: a.patient_name,
+              age: a.age,
+              gender: a.gender,
+              test_code: a.test_code,
+              appt_time: new Date(a.appt_time).toISOString(),
+              phone: a.phone,
+              status: a.status
+            })));
+          }
+        } catch (e) {
+          console.error("Failed to seed appointments table:", e);
+        }
+
+        try {
+          const { data: docsData } = await supabase.from('referring_doctors').select('id').limit(1);
+          if (!docsData || docsData.length === 0) {
+            await supabase.from('referring_doctors').insert(initialReferringDoctors);
+          }
+        } catch (e) {
+          console.error("Failed to seed referring_doctors table:", e);
+        }
+
+        try {
+          const { data: centersData } = await supabase.from('satellite_centers').select('center_id').limit(1);
+          if (!centersData || centersData.length === 0) {
+            await supabase.from('satellite_centers').insert(initialSatelliteCenters);
+          }
+        } catch (e) {
+          console.error("Failed to seed satellite_centers table:", e);
+        }
+
+        try {
+          const { data: vialsData } = await supabase.from('sample_vial_settings').select('sr_no').limit(1);
+          if (!vialsData || vialsData.length === 0) {
+            await supabase.from('sample_vial_settings').insert(initialSampleVialSettings.map(v => ({
+              sample_name: v.sample_name,
+              sample_type: v.sample_type,
+              container_type: v.container_type
+            })));
+          }
+        } catch (e) {
+          console.error("Failed to seed sample_vial_settings table:", e);
+        }
+
+        let finalTestCatalog = testCatData;
+
+        // If the table is empty, run programmatic seed using mock data
+        if (!testCatData || testCatData.length === 0) {
+          console.log("Supabase database is empty. Auto-seeding initial LIMS setup...");
+
+          await Promise.all([
+            supabase.from('lab_profiles').insert([initialLabProfile]),
+            supabase.from('test_catalog').insert(initialTestCatalog),
+            supabase.from('b2b_partners').insert(initialB2BPartners),
+            supabase.from('price_lists').insert(initialPriceLists),
+            supabase.from('center_details').insert([initialCenterDetails]),
+            supabase.from('bill_settings').insert([initialBillSettings]),
+            supabase.from('invoice_settings').insert([initialInvoiceSettings]),
+            supabase.from('financial_dashboard').insert([initialFinancialDashboard]),
+            supabase.from('system_users').insert(initialSystemUsers),
+            supabase.from('system_integrations').insert([initialSystemIntegrations])
+          ]);
+
+          await supabase.from('center_resources').insert([initialCenterResources]);
+          await supabase.from('test_configs').insert(initialTestConfigs);
+
+          const patientInserts = initialPatients.map(p => ({
+            patient_id: p.patient_id,
+            patient_type: p.patient_type,
+            mrn: p.mrn,
+            national_id: p.national_id,
+            designation: p.designation,
+            patient_name: p.patient_name,
+            gender: p.gender,
+            date_of_birth: p.date_of_birth,
+            age: p.age,
+            contact_number: p.contact_number,
+            phone_belongs_to: p.phone_belongs_to,
+            email: p.email,
+            organisation: p.organisation,
+            referral: p.referral,
+            sample_collected_from: p.logistics.sample_collected_from,
+            mode_of_transport: p.logistics.mode_of_transport
+          }));
+          await supabase.from('patients').insert(patientInserts);
+
+          const addressInserts = initialPatients.map(p => ({
+            patient_id: p.patient_id,
+            address: p.address_details.address,
+            city: p.address_details.city,
+            district: p.address_details.district,
+            pincode: p.address_details.pincode,
+            location_area: p.address_details.location_area,
+            state: p.address_details.state,
+            country: p.address_details.country,
+            ward_number: p.address_details.ward_number
+          }));
+          await supabase.from('patient_addresses').insert(addressInserts);
+
+          const medicalInserts = initialPatients.map(p => ({
+            patient_id: p.patient_id,
+            covid_vaccine_received: p.medical_history.covid_vaccine_received,
+            arogya_setu_app: p.medical_history.arogya_setu_app,
+            is_hospitalized: p.medical_history.is_hospitalized,
+            type_of_vaccine: p.medical_history.type_of_vaccine,
+            patient_category: p.medical_history.patient_category,
+            patient_occupation: p.medical_history.patient_occupation,
+            vaccination_date: p.medical_history.vaccination_date || null,
+            date_of_dose_2: p.medical_history.date_of_dose_2 || null,
+            vaccination_status: p.medical_history.vaccination_status,
+            body_temperature: p.medical_history.body_temperature,
+            symptom_progress: p.medical_history.symptom_progress,
+            cowin_beneficiary: p.medical_history.cowin_beneficiary,
+            country_state_travelled: p.medical_history.country_state_travelled,
+            isolation_location: p.medical_history.isolation_location,
+            passenger_locator_id: p.medical_history.passenger_locator_id,
+            travel_history: p.medical_history.travel_history,
+            symptoms: p.medical_history.symptoms,
+            medical_conditions: p.medical_history.medical_conditions
+          }));
+          await supabase.from('patient_medical_histories').insert(medicalInserts);
+
+          const encounterInserts = initialEncounters.map(e => ({
+            encounter_id: e.encounter_id,
+            accession_no: e.accession_no,
+            patient_id: e.patient_id,
+            partner_id: e.partner_id,
+            total_amount: e.total_amount,
+            status: e.status,
+            created_at: new Date().toISOString()
+          }));
+          await supabase.from('encounters').insert(encounterInserts);
+
+          const encounterTestInserts: any[] = [];
+          initialEncounters.forEach(e => {
+            e.tests_ordered.forEach(tCode => {
+              encounterTestInserts.push({ encounter_id: e.encounter_id, test_code: tCode });
+            });
+          });
+          await supabase.from('encounter_tests').insert(encounterTestInserts);
+
+          const billInserts = initialBillSettlements.map(b => {
+            const matchedEnc = initialEncounters.find(e => e.patient_id === b.patient_details.patient_id);
+            return {
+              bill_id: b.bill_id,
+              encounter_id: matchedEnc ? matchedEnc.encounter_id : null,
+              patient_id: b.patient_details.patient_id,
+              referral: b.referral,
+              bill_source: b.bill_source,
+              organisation: b.organisation,
+              bill_amount: b.bill_amount,
+              due_amount: b.due_amount,
+              status: b.status,
+              bill_date: new Date().toISOString()
+            };
+          });
+          await supabase.from('bill_settlements').insert(billInserts);
+
+          const reportInserts = initialReportPrints.map(r => {
+            const matchedEnc = initialEncounters.find(e => e.patient_id === (initialPatients.find(p => p.patient_name === r.patient_name)?.patient_id || ''));
+            return {
+              report_id: r.report_id,
+              encounter_id: matchedEnc ? matchedEnc.encounter_id : null,
+              patient_name: r.patient_name,
+              org_name: r.org_name,
+              referral: r.referral,
+              tests: r.tests,
+              print_status: r.print_status,
+              bill_date: new Date().toISOString()
+            };
+          });
+          await supabase.from('report_print_tracking').insert(reportInserts);
+
+          const sampleInserts = initialSamples.map(s => ({
+            sample_id: s.sample_id,
+            accession_no: s.accession_no,
+            barcode_number: s.barcode_number,
+            sample_type: s.sample_type,
+            status: s.status,
+            rejection_reason: s.rejection_reason || null,
+            collected_at: s.collected_at ? new Date().toISOString() : null
+          }));
+          await supabase.from('samples').insert(sampleInserts);
+
+          const sampleRequiredTestInserts: any[] = [];
+          initialSamples.forEach(s => {
+            s.required_test_codes.forEach(tCode => {
+              sampleRequiredTestInserts.push({ sample_id: s.sample_id, test_code: tCode });
+            });
+          });
+          await supabase.from('sample_required_tests').insert(sampleRequiredTestInserts);
+
+          const resultInserts = initialTestResults.map(r => ({
+            result_id: r.result_id,
+            accession_no: r.accession_no,
+            status: r.status,
+            updated_at: new Date().toISOString()
+          }));
+          await supabase.from('test_results').insert(resultInserts);
+
+          const paramInserts = initialResultParameters.map(p => ({
+            parameter_id: p.parameter_id,
+            result_id: p.result_id,
+            parameter_name: p.parameter_name,
+            observed_value: p.observed_value,
+            is_abnormal: p.is_abnormal,
+            reference_range: p.reference_range,
+            unit: p.unit,
+            min_value: p.min_value,
+            max_value: p.max_value
+          }));
+          await supabase.from('result_parameters').insert(paramInserts);
+
+          const caseInserts = initialPatientCases.map(c => ({
+            result_id: c.result_id,
+            category: c.category,
+            notes: c.notes || null,
+            tat_exceeded_hours: c.tat_exceeded_hours || null,
+            outsource_center: c.outsource_center || null
+          }));
+          await supabase.from('clinical_patient_cases').insert(caseInserts);
+
+          const { data: reloadedCat } = await supabase.from('test_catalog').select('*');
+          finalTestCatalog = reloadedCat || initialTestCatalog;
+        }
+
+        // Fetch all tables to construct frontend client states
+        const [
+          profilesRes,
+          partnersRes,
+          patientsRes,
+          encountersRes,
+          billsRes,
+          reportsRes,
+          configsRes,
+          billSettingsRes,
+          invoiceSettingsRes,
+          financialRes,
+          priceListsRes,
+          centerDetailsRes,
+          centerResourcesRes,
+          usersRes,
+          integrationsRes,
+          samplesRes,
+          resultsRes,
+          paramsRes,
+          casesRes,
+          appointmentsRes,
+          referringDoctorsRes,
+          satelliteCentersRes,
+          sampleVialSettingsRes
+        ] = await Promise.all([
+          supabase.from('lab_profiles').select('*').single(),
+          supabase.from('b2b_partners').select('*'),
+          supabase.from('patients').select('*, patient_addresses(*), patient_medical_histories(*)'),
+          supabase.from('encounters').select('*, encounter_tests(test_code)'),
+          supabase.from('bill_settlements').select('*'),
+          supabase.from('report_print_tracking').select('*'),
+          supabase.from('test_configs').select('*'),
+          supabase.from('bill_settings').select('*').single(),
+          supabase.from('invoice_settings').select('*').single(),
+          supabase.from('financial_dashboard').select('*').single(),
+          supabase.from('price_lists').select('*'),
+          supabase.from('center_details').select('*').single(),
+          supabase.from('center_resources').select('*').single(),
+          supabase.from('system_users').select('*'),
+          supabase.from('system_integrations').select('*').single(),
+          supabase.from('samples').select('*, sample_required_tests(test_code)'),
+          supabase.from('test_results').select('*'),
+          supabase.from('result_parameters').select('*'),
+          supabase.from('clinical_patient_cases').select('*'),
+          supabase.from('appointments').select('*'),
+          supabase.from('referring_doctors').select('*'),
+          supabase.from('satellite_centers').select('*'),
+          supabase.from('sample_vial_settings').select('*')
+        ]);
+
+        if (profilesRes.data) setLabProfile(profilesRes.data);
+        if (finalTestCatalog) setTestCatalog(finalTestCatalog);
+        if (partnersRes.data) setB2BPartners(partnersRes.data);
+
+        if (appointmentsRes.data) {
+          setAppointments(appointmentsRes.data.map((a: any) => ({
+            appt_id: a.appt_id,
+            patient_name: a.patient_name,
+            age: Number(a.age),
+            gender: a.gender,
+            test_code: a.test_code,
+            appt_time: a.appt_time,
+            phone: a.phone,
+            status: a.status
+          })));
+        }
+        if (referringDoctorsRes.data) {
+          setReferringDoctors(referringDoctorsRes.data.map((d: any) => ({
+            id: d.id,
+            name: d.name,
+            speciality: d.speciality,
+            clinic: d.clinic,
+            contact: d.contact,
+            commission: Number(d.commission)
+          })));
+        }
+        if (satelliteCentersRes.data) {
+          setSatelliteCenters(satelliteCentersRes.data.map((c: any) => ({
+            center_id: c.center_id,
+            name: c.name,
+            location: c.location,
+            head: c.head,
+            status: c.status
+          })));
+        }
+        if (sampleVialSettingsRes.data) {
+          setSampleVialSettings(sampleVialSettingsRes.data.map((v: any) => ({
+            sr_no: Number(v.sr_no),
+            sample_name: v.sample_name,
+            sample_type: v.sample_type,
+            container_type: v.container_type
+          })));
+        }
+
+        if (patientsRes.data) {
+          const mappedPatients: Patient[] = patientsRes.data.map((p: any) => {
+            const addr = p.patient_addresses;
+            const hist = p.patient_medical_histories;
+            return {
+              patient_id: p.patient_id,
+              patient_type: p.patient_type,
+              mrn: p.mrn,
+              national_id: p.national_id,
+              designation: p.designation,
+              patient_name: p.patient_name,
+              gender: p.gender,
+              date_of_birth: p.date_of_birth,
+              age: p.age,
+              contact_number: p.contact_number,
+              phone_belongs_to: p.phone_belongs_to,
+              email: p.email,
+              organisation: p.organisation,
+              referral: p.referral,
+              address_details: addr ? {
+                address: addr.address,
+                city: addr.city,
+                district: addr.district,
+                pincode: addr.pincode,
+                location_area: addr.location_area,
+                state: addr.state,
+                country: addr.country,
+                ward_number: addr.ward_number
+              } : { address: '', city: '', district: '', pincode: '', location_area: '', state: '', country: '', ward_number: '' },
+              medical_history: hist ? {
+                covid_vaccine_received: hist.covid_vaccine_received,
+                arogya_setu_app: hist.arogya_setu_app,
+                is_hospitalized: hist.is_hospitalized,
+                type_of_vaccine: hist.type_of_vaccine || '',
+                patient_category: hist.patient_category || '',
+                patient_occupation: hist.patient_occupation || '',
+                vaccination_date: hist.vaccination_date || '',
+                date_of_dose_2: hist.date_of_dose_2 || '',
+                vaccination_status: hist.vaccination_status || 'Unvaccinated',
+                body_temperature: hist.body_temperature || 'Normal',
+                symptom_progress: hist.symptom_progress || 'None',
+                cowin_beneficiary: hist.cowin_beneficiary || '',
+                country_state_travelled: hist.country_state_travelled || '',
+                isolation_location: hist.isolation_location || '',
+                passenger_locator_id: hist.passenger_locator_id || '',
+                travel_history: hist.travel_history || [],
+                symptoms: hist.symptoms || [],
+                medical_conditions: hist.medical_conditions || []
+              } : {
+                covid_vaccine_received: false, arogya_setu_app: false, is_hospitalized: false, type_of_vaccine: '',
+                patient_category: '', patient_occupation: '', vaccination_date: '', date_of_dose_2: '',
+                vaccination_status: 'Unvaccinated', body_temperature: 'Normal', symptom_progress: 'None',
+                cowin_beneficiary: '', country_state_travelled: '', isolation_location: '', passenger_locator_id: '',
+                travel_history: [], symptoms: [], medical_conditions: []
+              },
+              logistics: {
+                sample_collected_from: p.sample_collected_from || 'Lab Center',
+                mode_of_transport: p.mode_of_transport || 'Self-delivered'
+              }
+            };
+          });
+          setPatients(mappedPatients);
+        }
+
+        if (encountersRes.data) {
+          const mappedEncounters: Encounter[] = encountersRes.data.map((e: any) => ({
+            encounter_id: e.encounter_id,
+            accession_no: e.accession_no,
+            patient_id: e.patient_id,
+            partner_id: e.partner_id,
+            total_amount: Number(e.total_amount),
+            status: e.status,
+            tests_ordered: e.encounter_tests ? e.encounter_tests.map((t: any) => t.test_code) : [],
+            created_at: e.created_at ? new Date(e.created_at).toLocaleDateString('en-GB') + ' ' + new Date(e.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : ''
+          }));
+          setEncounters(mappedEncounters);
+        }
+
+        if (billsRes.data) {
+          const mappedBills: BillSettlement[] = billsRes.data.map((b: any) => {
+            const pt = patientsRes.data?.find((p: any) => p.patient_id === b.patient_id);
+            return {
+              bill_id: b.bill_id,
+              bill_date: b.bill_date ? new Date(b.bill_date).toLocaleDateString('en-GB') + ' ' + new Date(b.bill_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '',
+              patient_details: {
+                name: pt ? pt.patient_name : 'Patient',
+                gender: pt ? pt.gender : 'Male',
+                age: pt ? pt.age : 30,
+                patient_id: b.patient_id
+              },
+              referral: b.referral || 'Self',
+              bill_source: b.bill_source || 'Front Desk',
+              organisation: b.organisation || 'Direct Walk-In',
+              bill_amount: Number(b.bill_amount),
+              due_amount: Number(b.due_amount),
+              status: b.status
+            };
+          });
+          setBillSettlements(mappedBills);
+        }
+
+        if (reportsRes.data) {
+          const mappedReports: ReportPrintTracking[] = reportsRes.data.map((r: any) => ({
+            report_id: r.report_id,
+            patient_name: r.patient_name,
+            org_name: r.org_name || '',
+            referral: r.referral || '',
+            tests: r.tests || [],
+            report_date: r.report_date ? new Date(r.report_date).toLocaleDateString('en-GB') + ' ' + new Date(r.report_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '',
+            bill_date: r.bill_date ? new Date(r.bill_date).toLocaleDateString('en-GB') + ' ' + new Date(r.bill_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '',
+            print_status: r.print_status
+          }));
+          setReportPrints(mappedReports);
+        }
+
+        if (configsRes.data) setTestConfigs(configsRes.data);
+        if (billSettingsRes.data) setBillSettings(billSettingsRes.data);
+        if (invoiceSettingsRes.data) setInvoiceSettings(invoiceSettingsRes.data);
+        if (financialRes.data) setFinancialDashboard(financialRes.data);
+        if (priceListsRes.data) setPriceLists(priceListsRes.data);
+        if (centerDetailsRes.data) setCenterDetails(centerDetailsRes.data);
+        if (centerResourcesRes.data) setCenterResources(centerResourcesRes.data);
+        if (usersRes.data) setSystemUsers(usersRes.data);
+        if (integrationsRes.data) setSystemIntegrations(integrationsRes.data);
+
+        if (samplesRes.data) {
+          const mappedSamples: Sample[] = samplesRes.data.map((s: any) => ({
+            sample_id: s.sample_id,
+            accession_no: s.accession_no,
+            barcode_number: s.barcode_number,
+            sample_type: s.sample_type,
+            status: s.status,
+            rejection_reason: s.rejection_reason || undefined,
+            collected_at: s.collected_at ? new Date(s.collected_at).toLocaleDateString('en-GB') + ' ' + new Date(s.collected_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : undefined,
+            required_test_codes: s.sample_required_tests ? s.sample_required_tests.map((t: any) => t.test_code) : []
+          }));
+          setSamples(mappedSamples);
+        }
+
+        if (resultsRes.data) setTestResults(resultsRes.data);
+        if (paramsRes.data) setResultParameters(paramsRes.data);
+
+        if (casesRes.data) {
+          const mappedCases: ClinicalPatientCase[] = casesRes.data.map((c: any) => {
+            const matchedRes = resultsRes.data?.find((r: any) => r.result_id === c.result_id);
+            const matchedEnc = encountersRes.data?.find((e: any) => e.accession_no === matchedRes?.accession_no);
+            const matchedPat = patientsRes.data?.find((p: any) => p.patient_id === matchedEnc?.patient_id);
+            const matchedParams = paramsRes.data?.filter((p: any) => p.result_id === c.result_id) || [];
+
+            return {
+              result_id: c.result_id,
+              accession_no: matchedRes ? matchedRes.accession_no : '',
+              patient_id: matchedPat ? matchedPat.patient_id : '',
+              patient_name: matchedPat ? matchedPat.patient_name : 'Unknown',
+              age: matchedPat ? matchedPat.age : 30,
+              gender: matchedPat && (matchedPat.gender === 'Female' || matchedPat.gender === 'F') ? 'F' : 'M',
+              mrn: matchedPat ? matchedPat.mrn : '',
+              tests_ordered: matchedEnc && matchedEnc.encounter_tests ? matchedEnc.encounter_tests.map((t: any) => t.test_code) : [],
+              organisation: matchedPat ? matchedPat.organisation || 'Direct Walk-In' : 'Direct Walk-In',
+              referral_doctor: matchedPat ? matchedPat.referral || 'Self' : 'Self',
+              order_date: matchedEnc ? new Date(matchedEnc.created_at).toLocaleDateString('en-GB') + ' ' + new Date(matchedEnc.created_at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '',
+              category: c.category,
+              status: matchedRes ? matchedRes.status : 'Incomplete',
+              parameters: matchedParams.map((p: any) => ({
+                parameter_id: p.parameter_id,
+                parameter_name: p.parameter_name,
+                observed_value: p.observed_value || '',
+                unit: p.unit || '',
+                min_value: Number(p.min_value),
+                max_value: Number(p.max_value),
+                reference_range: p.reference_range,
+                is_abnormal: p.is_abnormal
+              })),
+              notes: c.notes,
+              tat_exceeded_hours: c.tat_exceeded_hours,
+              outsource_center: c.outsource_center
+            };
+          });
+          setPatientCases(mappedCases);
+        }
+      } catch (err) {
+        console.error("Failed to initialize LIMS database:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    initSupabase();
+  }, []);
+
+  const updateLabProfile = async (profile: LabProfile) => {
     setLabProfile(profile);
+    await supabase.from('lab_profiles').update({
+      name: profile.name,
+      address: profile.address,
+      email: profile.email,
+      phone: profile.phone
+    }).eq('id', 1);
   };
 
-  const addTest = (test: TestCatalog) => {
+  const addTest = async (test: TestCatalog) => {
     setTestCatalog(prev => {
       if (prev.some(t => t.test_code.toUpperCase() === test.test_code.toUpperCase())) {
         return prev;
       }
       return [...prev, test];
     });
-    // Add default TestConfig matching it
+    
     const newConfig: TestConfig = {
       testName: test.test_name,
       testCode: test.test_code,
@@ -890,26 +1380,137 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       autoApproval: true
     };
     setTestConfigs(prev => [...prev, newConfig]);
+
+    await supabase.from('test_catalog').insert([test]);
+    await supabase.from('test_configs').insert([{
+      test_code: test.test_code,
+      verification_status: 'Verified',
+      auto_approval: true
+    }]);
   };
 
-  const addPartner = (partner: B2B_Partner) => {
+  const addPartner = async (partner: B2B_Partner) => {
     setB2BPartners(prev => {
       if (prev.some(p => p.partner_id === partner.partner_id)) return prev;
       return [...prev, partner];
     });
+    await supabase.from('b2b_partners').insert([partner]);
   };
 
-  const addPatient = (patient: Patient) => {
+  const addPatient = async (patient: Patient) => {
     setPatients(prev => {
       if (prev.some(p => p.patient_id === patient.patient_id)) {
         return prev;
       }
       return [...prev, patient];
     });
+
+    await supabase.from('patients').insert([{
+      patient_id: patient.patient_id,
+      patient_type: patient.patient_type,
+      mrn: patient.mrn,
+      national_id: patient.national_id,
+      designation: patient.designation,
+      patient_name: patient.patient_name,
+      gender: patient.gender,
+      date_of_birth: patient.date_of_birth,
+      age: patient.age,
+      contact_number: patient.contact_number,
+      phone_belongs_to: patient.phone_belongs_to,
+      email: patient.email,
+      organisation: patient.organisation,
+      referral: patient.referral,
+      sample_collected_from: patient.logistics.sample_collected_from,
+      mode_of_transport: patient.logistics.mode_of_transport
+    }]);
+
+    await supabase.from('patient_addresses').insert([{
+      patient_id: patient.patient_id,
+      address: patient.address_details.address,
+      city: patient.address_details.city,
+      district: patient.address_details.district,
+      pincode: patient.address_details.pincode,
+      location_area: patient.address_details.location_area,
+      state: patient.address_details.state,
+      country: patient.address_details.country,
+      ward_number: patient.address_details.ward_number
+    }]);
+
+    await supabase.from('patient_medical_histories').insert([{
+      patient_id: patient.patient_id,
+      covid_vaccine_received: patient.medical_history.covid_vaccine_received,
+      arogya_setu_app: patient.medical_history.arogya_setu_app,
+      is_hospitalized: patient.medical_history.is_hospitalized,
+      type_of_vaccine: patient.medical_history.type_of_vaccine,
+      patient_category: patient.medical_history.patient_category,
+      patient_occupation: patient.medical_history.patient_occupation,
+      vaccination_date: patient.medical_history.vaccination_date || null,
+      date_of_dose_2: patient.medical_history.date_of_dose_2 || null,
+      vaccination_status: patient.medical_history.vaccination_status,
+      body_temperature: patient.medical_history.body_temperature,
+      symptom_progress: patient.medical_history.symptom_progress,
+      cowin_beneficiary: patient.medical_history.cowin_beneficiary,
+      country_state_travelled: patient.medical_history.country_state_travelled,
+      isolation_location: patient.medical_history.isolation_location,
+      passenger_locator_id: patient.medical_history.passenger_locator_id,
+      travel_history: patient.medical_history.travel_history,
+      symptoms: patient.medical_history.symptoms,
+      medical_conditions: patient.medical_history.medical_conditions
+    }]);
   };
 
-  const updatePatient = (updated: Patient) => {
+  const updatePatient = async (updated: Patient) => {
     setPatients(prev => prev.map(p => p.patient_id === updated.patient_id ? updated : p));
+
+    await supabase.from('patients').update({
+      patient_type: updated.patient_type,
+      mrn: updated.mrn,
+      national_id: updated.national_id,
+      designation: updated.designation,
+      patient_name: updated.patient_name,
+      gender: updated.gender,
+      date_of_birth: updated.date_of_birth,
+      age: updated.age,
+      contact_number: updated.contact_number,
+      phone_belongs_to: updated.phone_belongs_to,
+      email: updated.email,
+      organisation: updated.organisation,
+      referral: updated.referral,
+      sample_collected_from: updated.logistics.sample_collected_from,
+      mode_of_transport: updated.logistics.mode_of_transport
+    }).eq('patient_id', updated.patient_id);
+
+    await supabase.from('patient_addresses').update({
+      address: updated.address_details.address,
+      city: updated.address_details.city,
+      district: updated.address_details.district,
+      pincode: updated.address_details.pincode,
+      location_area: updated.address_details.location_area,
+      state: updated.address_details.state,
+      country: updated.address_details.country,
+      ward_number: updated.address_details.ward_number
+    }).eq('patient_id', updated.patient_id);
+
+    await supabase.from('patient_medical_histories').update({
+      covid_vaccine_received: updated.medical_history.covid_vaccine_received,
+      arogya_setu_app: updated.medical_history.arogya_setu_app,
+      is_hospitalized: updated.medical_history.is_hospitalized,
+      type_of_vaccine: updated.medical_history.type_of_vaccine,
+      patient_category: updated.medical_history.patient_category,
+      patient_occupation: updated.medical_history.patient_occupation,
+      vaccination_date: updated.medical_history.vaccination_date || null,
+      date_of_dose_2: updated.medical_history.date_of_dose_2 || null,
+      vaccination_status: updated.medical_history.vaccination_status,
+      body_temperature: updated.medical_history.body_temperature,
+      symptom_progress: updated.medical_history.symptom_progress,
+      cowin_beneficiary: updated.medical_history.cowin_beneficiary,
+      country_state_travelled: updated.medical_history.country_state_travelled,
+      isolation_location: updated.medical_history.isolation_location,
+      passenger_locator_id: updated.medical_history.passenger_locator_id,
+      travel_history: updated.medical_history.travel_history,
+      symptoms: updated.medical_history.symptoms,
+      medical_conditions: updated.medical_history.medical_conditions
+    }).eq('patient_id', updated.patient_id);
   };
 
   const createEncounter = (
@@ -927,14 +1528,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const encounterId = `ENC-${20000 + encounters.length + 4}`;
 
     const now = new Date();
-    const utcTime = now.getTime() + (now.getTimezoneOffset() * 60000);
-    const istTime = new Date(utcTime + (3600000 * 5.5));
-    const day = String(istTime.getDate()).padStart(2, '0');
-    const month = String(istTime.getMonth() + 1).padStart(2, '0');
-    const year = istTime.getFullYear();
-    const hours = String(istTime.getHours()).padStart(2, '0');
-    const minutes = String(istTime.getMinutes()).padStart(2, '0');
-    const formattedDate = `${day}/${month}/${year} ${hours}:${minutes}`;
+    const formattedDate = now.toLocaleDateString('en-GB') + ' ' + now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
     const newEncounter: Encounter = {
       encounter_id: encounterId,
@@ -949,7 +1543,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setEncounters(prev => [newEncounter, ...prev]);
 
-    // Automatically create accompanying BillSettlement
     const patientObj = patients.find(p => p.patient_id === patientId);
     const billingId = `BIL-${99200 + encounters.length + 5}`;
     const newBill: BillSettlement = {
@@ -971,7 +1564,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setBillSettlements(prev => [newBill, ...prev]);
 
-    // Automatically create accompanying ReportPrintTracking entry
     const reportId = `RPT-${55200 + encounters.length + 5}`;
     const newReport: ReportPrintTracking = {
       report_id: reportId,
@@ -986,15 +1578,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setReportPrints(prev => [newReport, ...prev]);
 
-    // Update financial dashboards
-    setFinancialDashboard(prev => ({
-      ...prev,
-      totalRevenue: prev.totalRevenue + totalAmount,
-      amountPaid: prev.amountPaid + totalAmount,
-      cashCollection: prev.cashCollection + totalAmount
-    }));
+    setFinancialDashboard(prev => {
+      const updatedFin = {
+        ...prev,
+        totalRevenue: prev.totalRevenue + totalAmount,
+        amountPaid: prev.amountPaid + totalAmount,
+        cashCollection: prev.cashCollection + totalAmount
+      };
+      supabase.from('financial_dashboard').update({
+        total_revenue: updatedFin.totalRevenue,
+        amount_paid: updatedFin.amountPaid,
+        cash_collection: updatedFin.cashCollection
+      }).eq('id', 1).then();
+      return updatedFin;
+    });
 
-    // PHASE 2 - ACCEDING LOGISTICS GENERATION (Samples, results, parameters)
     const getCleanSampleType = (tSample: string): 'Serum' | 'EDTA' | 'Urine' | 'Blood' | 'Plasma' | 'Swab' => {
       const s = (tSample || '').toLowerCase();
       if (s.includes('blood') || s.includes('edta')) return 'EDTA';
@@ -1102,11 +1700,120 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setResultParameters(prev => [...prev, ...newParameters]);
 
+    const newCase: ClinicalPatientCase = {
+      result_id: resultId,
+      accession_no: accessionNo,
+      patient_id: patientId,
+      patient_name: patientObj ? patientObj.patient_name : "Patient",
+      age: patientObj ? patientObj.age : 30,
+      gender: patientObj && (patientObj.gender === 'Female' || patientObj.gender === 'F') ? 'F' : 'M',
+      mrn: patientObj ? patientObj.mrn : '',
+      tests_ordered: tests,
+      organisation: organisation,
+      referral_doctor: referral,
+      order_date: formattedDate,
+      category: 'Incomplete',
+      status: 'Incomplete',
+      parameters: newParameters.map(p => ({
+        parameter_id: p.parameter_id,
+        parameter_name: p.parameter_name,
+        observed_value: "",
+        unit: p.unit,
+        min_value: p.min_value,
+        max_value: p.max_value,
+        reference_range: p.reference_range,
+        is_abnormal: false
+      }))
+    };
+    setPatientCases(prev => [newCase, ...prev]);
+
+    async function saveToSupabase() {
+      await supabase.from('encounters').insert([{
+        encounter_id: encounterId,
+        accession_no: accessionNo,
+        patient_id: patientId,
+        partner_id: partnerId,
+        total_amount: totalAmount,
+        status: 'Pending Accession'
+      }]);
+
+      const testInserts = tests.map(t => ({ encounter_id: encounterId, test_code: t }));
+      await supabase.from('encounter_tests').insert(testInserts);
+
+      await supabase.from('bill_settlements').insert([{
+        bill_id: billingId,
+        encounter_id: encounterId,
+        patient_id: patientId,
+        referral: referral,
+        bill_source: "Front Desk Registration",
+        organisation: organisation,
+        bill_amount: totalAmount,
+        due_amount: 0,
+        status: "Paid",
+        bill_date: new Date().toISOString()
+      }]);
+
+      await supabase.from('report_print_tracking').insert([{
+        report_id: reportId,
+        encounter_id: encounterId,
+        patient_name: patientObj ? patientObj.patient_name : "Patient",
+        org_name: organisation,
+        referral: referral,
+        tests: tests,
+        print_status: false,
+        bill_date: new Date().toISOString()
+      }]);
+
+      const sampleRows = createdSamples.map(s => ({
+        sample_id: s.sample_id,
+        accession_no: accessionNo,
+        barcode_number: null,
+        sample_type: s.sample_type,
+        status: 'Pending Collection'
+      }));
+      await supabase.from('samples').insert(sampleRows);
+
+      const requiredTestRows: any[] = [];
+      createdSamples.forEach(s => {
+        s.required_test_codes.forEach(tc => {
+          requiredTestRows.push({ sample_id: s.sample_id, test_code: tc });
+        });
+      });
+      await supabase.from('sample_required_tests').insert(requiredTestRows);
+
+      await supabase.from('test_results').insert([{
+        result_id: resultId,
+        accession_no: accessionNo,
+        status: 'Incomplete'
+      }]);
+
+      const paramRows = newParameters.map(p => ({
+        parameter_id: p.parameter_id,
+        result_id: p.result_id,
+        parameter_name: p.parameter_name,
+        observed_value: "",
+        is_abnormal: false,
+        reference_range: p.reference_range,
+        unit: p.unit,
+        min_value: p.min_value,
+        max_value: p.max_value
+      }));
+      await supabase.from('result_parameters').insert(paramRows);
+
+      await supabase.from('clinical_patient_cases').insert([{
+        result_id: resultId,
+        category: 'Incomplete',
+        notes: null
+      }]);
+    }
+    
+    saveToSupabase().then();
     return newEncounter;
   };
 
-  const updateEncounterStatus = (id: string, status: 'Pending Accession' | 'Sample Collected' | 'Processing' | 'Approved') => {
+  const updateEncounterStatus = async (id: string, status: 'Pending Accession' | 'Sample Collected' | 'Processing' | 'Approved') => {
     setEncounters(prev => prev.map(e => e.encounter_id === id ? { ...e, status } : e));
+    await supabase.from('encounters').update({ status }).eq('encounter_id', id);
   };
 
   const collectSample = (sampleId: string, barcode: string) => {
@@ -1128,10 +1835,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const allAccessed = accSamples.every(s => s.status === 'Accessed');
         if (allAccessed) {
           setEncounters(ePrev => ePrev.map(e => e.accession_no === accNo ? { ...e, status: 'Sample Collected' } : e));
+          supabase.from('encounters').update({ status: 'Sample Collected' }).eq('accession_no', accNo).then();
         }
       }
       return updated;
     });
+
+    supabase.from('samples').update({
+      barcode_number: barcode,
+      status: 'Accessed',
+      collected_at: new Date().toISOString()
+    }).eq('sample_id', sampleId).then();
   };
 
   const bulkCollectSamplesForAccession = (accessionNo: string) => {
@@ -1148,6 +1862,25 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     });
     
     setEncounters(prev => prev.map(e => e.accession_no === accessionNo ? { ...e, status: 'Sample Collected' } : e));
+
+    async function saveBulkCollect() {
+      const { data: smps } = await supabase.from('samples').select('*').eq('accession_no', accessionNo);
+      if (smps) {
+        await Promise.all(smps.map(s => {
+          if (s.status !== 'Accessed') {
+            const bc = s.barcode_number || `BC-${accessionNo}-${s.sample_type.toUpperCase()}`;
+            return supabase.from('samples').update({
+              barcode_number: bc,
+              status: 'Accessed',
+              collected_at: new Date().toISOString()
+            }).eq('sample_id', s.sample_id);
+          }
+          return Promise.resolve();
+        }));
+      }
+      await supabase.from('encounters').update({ status: 'Sample Collected' }).eq('accession_no', accessionNo);
+    }
+    saveBulkCollect().then();
   };
 
   const rejectSample = (sampleId: string, reason: string) => {
@@ -1164,7 +1897,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     
     if (accNo) {
       setEncounters(prev => prev.map(e => e.accession_no === accNo ? { ...e, status: 'Pending Accession' } : e));
+      supabase.from('encounters').update({ status: 'Pending Accession' }).eq('accession_no', accNo).then();
     }
+
+    supabase.from('samples').update({
+      status: 'Rejected',
+      rejection_reason: reason
+    }).eq('sample_id', sampleId).then();
   };
 
   const resetRejectedSampleToPending = (sampleId: string) => {
@@ -1175,6 +1914,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       rejection_reason: undefined,
       collected_at: undefined
     } : s));
+
+    supabase.from('samples').update({
+      barcode_number: null,
+      status: 'Pending Collection',
+      rejection_reason: null,
+      collected_at: null
+    }).eq('sample_id', sampleId).then();
   };
 
   const saveDraftParameters = (resultId: string, parameters: ResultParameter[]) => {
@@ -1182,71 +1928,308 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const paramMap = new Map(parameters.map(p => [p.parameter_id, p]));
       return prev.map(p => paramMap.has(p.parameter_id) ? paramMap.get(p.parameter_id)! : p);
     });
+
+    async function saveParams() {
+      await Promise.all(parameters.map(p => 
+        supabase.from('result_parameters').update({
+          observed_value: p.observed_value,
+          is_abnormal: p.is_abnormal
+        }).eq('parameter_id', p.parameter_id)
+      ));
+    }
+    saveParams().then();
   };
 
   const signAndApproveResult = (resultId: string, parameters: ResultParameter[]) => {
     saveDraftParameters(resultId, parameters);
     
-    setTestResults(prev => prev.map(tr => tr.result_id === resultId ? { ...tr, status: 'Signed' as const, updated_at: new Date().toLocaleDateString('en-GB') + " " + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) } : tr));
+    const formattedDate = new Date().toLocaleDateString('en-GB') + " " + new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+
+    setTestResults(prev => prev.map(tr => tr.result_id === resultId ? { ...tr, status: 'Signed' as const, updated_at: formattedDate } : tr));
     
-    // Find accession number to update encounter status
     const tr = testResults.find(r => r.result_id === resultId);
     if (tr) {
       setEncounters(prev => prev.map(e => e.accession_no === tr.accession_no ? { ...e, status: 'Approved' } : e));
+      supabase.from('encounters').update({ status: 'Approved' }).eq('accession_no', tr.accession_no).then();
     }
+
+    supabase.from('test_results').update({
+      status: 'Signed',
+      updated_at: new Date().toISOString()
+    }).eq('result_id', resultId).then();
   };
 
-  const addBillSettlement = (bill: BillSettlement) => {
+  // Intercept setter for Patient Cases to write to clinical_patient_cases, test_results, result_parameters
+  const customSetPatientCases = (value: React.SetStateAction<ClinicalPatientCase[]>) => {
+    setPatientCases(prev => {
+      const next = typeof value === 'function' ? (value as Function)(prev) : value;
+      
+      next.forEach((c: ClinicalPatientCase) => {
+        const prevCase = prev.find(p => p.result_id === c.result_id);
+        if (!prevCase || JSON.stringify(prevCase) !== JSON.stringify(c)) {
+          supabase.from('clinical_patient_cases').update({
+            category: c.category,
+            notes: c.notes || null,
+            tat_exceeded_hours: c.tat_exceeded_hours || null,
+            outsource_center: c.outsource_center || null
+          }).eq('result_id', c.result_id).then();
+
+          supabase.from('test_results').update({
+            status: c.status,
+            updated_at: new Date().toISOString()
+          }).eq('result_id', c.result_id).then();
+
+          c.parameters.forEach(param => {
+            supabase.from('result_parameters').update({
+              observed_value: param.observed_value,
+              is_abnormal: param.is_abnormal
+            }).eq('parameter_id', param.parameter_id).then();
+          });
+        }
+      });
+      return next;
+    });
+  };
+
+  const addBillSettlement = async (bill: BillSettlement) => {
     setBillSettlements(prev => [bill, ...prev]);
+    const matchedEnc = encounters.find(e => e.patient_id === bill.patient_details.patient_id);
+    await supabase.from('bill_settlements').insert([{
+      bill_id: bill.bill_id,
+      encounter_id: matchedEnc ? matchedEnc.encounter_id : null,
+      patient_id: bill.patient_details.patient_id,
+      referral: bill.referral,
+      bill_source: bill.bill_source,
+      organisation: bill.organisation,
+      bill_amount: bill.bill_amount,
+      due_amount: bill.due_amount,
+      status: bill.status,
+      bill_date: new Date().toISOString()
+    }]);
   };
 
-  const updateBillStatus = (id: string, status: 'Pending' | 'Paid' | 'Cancelled') => {
+  const updateBillStatus = async (id: string, status: 'Pending' | 'Paid' | 'Cancelled') => {
     setBillSettlements(prev => prev.map(b => b.bill_id === id ? { ...b, status, due_amount: status === 'Paid' ? 0 : b.due_amount } : b));
+    await supabase.from('bill_settlements').update({
+      status,
+      due_amount: status === 'Paid' ? 0 : undefined
+    }).eq('bill_id', id);
   };
 
-  const addReportPrint = (report: ReportPrintTracking) => {
+  const addReportPrint = async (report: ReportPrintTracking) => {
     setReportPrints(prev => [report, ...prev]);
+    const matchedEnc = encounters.find(e => e.patient_id === (patients.find(p => p.patient_name === report.patient_name)?.patient_id || ''));
+    await supabase.from('report_print_tracking').insert([{
+      report_id: report.report_id,
+      encounter_id: matchedEnc ? matchedEnc.encounter_id : null,
+      patient_name: report.patient_name,
+      org_name: report.org_name,
+      referral: report.referral,
+      tests: report.tests,
+      print_status: report.print_status,
+      bill_date: new Date().toISOString()
+    }]);
   };
 
-  const updateReportPrintStatus = (id: string, printed: boolean) => {
+  const updateReportPrintStatus = async (id: string, printed: boolean) => {
     const formattedDate = printed ? new Date().toLocaleDateString('en-GB') + " " + new Date().toLocaleTimeString('en-GB', {hour: '2-digit', minute:'2-digit'}) : "";
     setReportPrints(prev => prev.map(r => r.report_id === id ? { ...r, print_status: printed, report_date: formattedDate } : r));
+    await supabase.from('report_print_tracking').update({
+      print_status: printed,
+      report_date: printed ? new Date().toISOString() : null
+    }).eq('report_id', id);
   };
 
-  const addTestConfig = (config: TestConfig) => {
+  const addTestConfig = async (config: TestConfig) => {
     setTestConfigs(prev => [...prev, config]);
+    await supabase.from('test_configs').insert([{
+      test_code: config.testCode,
+      verification_status: config.verificationStatus,
+      auto_approval: config.autoApproval
+    }]);
   };
 
-  const updateBillSettings = (settings: BillSettings) => {
+  const updateBillSettings = async (settings: BillSettings) => {
     setBillSettings(settings);
+    await supabase.from('bill_settings').update({
+      pre_set_additional_amount: settings.preSetAdditionalAmount,
+      bill_header_flag: settings.billHeaderFlag,
+      bill_footer_flag: settings.billFooterFlag,
+      bill_signature_flag: settings.billSignatureFlag,
+      barcode_flag: settings.barcodeFlag,
+      sample_type_on_barcode: settings.sampleTypeOnBarcode,
+      collection_date: settings.collectionDate,
+      bill_receipt_qrcode: settings.billReceiptQRCode,
+      test_name: settings.testName,
+      short_test_names: settings.shortTestNames,
+      manual_accession_number_mandatory: settings.manualAccessionNumberMandatory,
+      duplicate_accession_number: settings.duplicateAccessionNumber,
+      patient_print_card: settings.patientPrintCard,
+      helper_comment: settings.helperComment
+    }).eq('id', 1);
   };
 
-  const updateInvoiceSettings = (settings: InvoiceSettings) => {
+  const updateInvoiceSettings = async (settings: InvoiceSettings) => {
     setInvoiceSettings(settings);
+    await supabase.from('invoice_settings').update({
+      header_height: settings.headerHeight,
+      footer_height: settings.footerHeight,
+      header_image: settings.headerImage,
+      footer_image: settings.footerImage,
+      invoice_header_flag: settings.invoiceHeaderFlag,
+      invoice_footer_flag: settings.invoiceFooterFlag,
+      use_bill_level_vat_in_qrcode: settings.useBillLevelVATInQRCode,
+      helper_comment: settings.helperComment
+    }).eq('id', 1);
   };
 
-  const updateFinancialDashboard = (stats: FinancialDashboard) => {
+  const updateFinancialDashboard = async (stats: FinancialDashboard) => {
     setFinancialDashboard(stats);
+    await supabase.from('financial_dashboard').update({
+      total_revenue: stats.totalRevenue,
+      amount_due: stats.amountDue,
+      amount_paid: stats.amountPaid,
+      cash_collection: stats.cashCollection,
+      online_collection: stats.onlineCollection,
+      others_collection: stats.othersCollection,
+      average_patient_rating: stats.averagePatientRating,
+      total_logins: stats.totalLogins
+    }).eq('id', 1);
   };
 
-  const addPriceList = (list: PriceList) => {
+  const addPriceList = async (list: PriceList) => {
     setPriceLists(prev => [...prev, list]);
+    await supabase.from('price_lists').insert([list]);
   };
 
-  const updateCenterDetails = (details: CenterDetails) => {
+  const updateCenterDetails = async (details: CenterDetails) => {
     setCenterDetails(details);
+    await supabase.from('center_details').update({
+      auth_id: details.authID,
+      report_sharing_key: details.reportSharingKey,
+      lab_address: details.labAddress,
+      area: details.area,
+      city: details.city,
+      type_of_functioning: details.typeOfFunctioning,
+      website: details.website,
+      primary_contact_number: details.primaryContactNumber,
+      secondary_contact_number: details.secondaryContactNumber,
+      lab_email: details.labEmail,
+      admin_email: details.adminEmail,
+      timings_from: details.timingsFrom,
+      timings_to: details.timingsTo,
+      is_24x7: details.is24x7
+    }).eq('lab_name', details.labName);
   };
 
-  const updateCenterResources = (resources: CenterResources) => {
+  const updateCenterResources = async (resources: CenterResources) => {
     setCenterResources(resources);
+    await supabase.from('center_resources').update({
+      center_logo: resources.centerLogo,
+      mobile_header: resources.mobileHeader,
+      pdf_header: resources.pdfHeader,
+      pdf_footer: resources.pdfFooter,
+      bill_header: resources.billHeader
+    }).eq('lab_name', centerDetails.labName);
   };
 
-  const addSystemUser = (user: SystemUser) => {
+  const addSystemUser = async (user: SystemUser) => {
     setSystemUsers(prev => [...prev, user]);
+    await supabase.from('system_users').insert([{
+      username: user.username,
+      name: user.name,
+      user_role: user.userRole,
+      default_login_section: user.defaultLoginSection,
+      last_activity: new Date(user.lastActivity).toISOString()
+    }]);
   };
 
-  const updateSystemIntegrations = (integrations: SystemIntegrations) => {
+  const updateSystemIntegrations = async (integrations: SystemIntegrations) => {
     setSystemIntegrations(integrations);
+    await supabase.from('system_integrations').update({
+      api_requests_count: integrations.apiRequestsCount,
+      webhook_triggers_count: integrations.webhookTriggersCount,
+      error_count: integrations.errorCount,
+      api_endpoint_filter: integrations.apiEndpointFilter
+    }).eq('id', 1);
+  };
+
+  const addAppointment = async (appt: Appointment) => {
+    setAppointments(prev => [appt, ...prev]);
+    await supabase.from('appointments').insert([{
+      appt_id: appt.appt_id,
+      patient_name: appt.patient_name,
+      age: appt.age,
+      gender: appt.gender,
+      test_code: appt.test_code,
+      appt_time: new Date(appt.appt_time).toISOString(),
+      phone: appt.phone,
+      status: appt.status
+    }]);
+  };
+
+  const updateAppointmentStatus = async (id: string, status: Appointment['status']) => {
+    setAppointments(prev => prev.map(a => a.appt_id === id ? { ...a, status } : a));
+    await supabase.from('appointments').update({ status }).eq('appt_id', id);
+  };
+
+  const addReferringDoctor = async (doc: ReferringDoctor) => {
+    setReferringDoctors(prev => [...prev, doc]);
+    await supabase.from('referring_doctors').insert([{
+      id: doc.id,
+      name: doc.name,
+      speciality: doc.speciality,
+      clinic: doc.clinic,
+      contact: doc.contact,
+      commission: doc.commission
+    }]);
+  };
+
+  const addSatelliteCenter = async (center: SatelliteCenter) => {
+    setSatelliteCenters(prev => [...prev, center]);
+    await supabase.from('satellite_centers').insert([{
+      center_id: center.center_id,
+      name: center.name,
+      location: center.location,
+      head: center.head,
+      status: center.status
+    }]);
+  };
+
+  const addSampleVialSetting = async (setting: SampleSetting) => {
+    const { data, error } = await supabase.from('sample_vial_settings').insert([{
+      sample_name: setting.sample_name,
+      sample_type: setting.sample_type,
+      container_type: setting.container_type
+    }]).select('sr_no').single();
+    
+    if (error) {
+      console.error("Failed to insert sample vial setting:", error);
+    }
+    const srNo = data ? Number(data.sr_no) : Math.floor(Math.random() * 1000) + 100;
+    setSampleVialSettings(prev => [...prev, { ...setting, sr_no: srNo }]);
+  };
+
+  const updateSampleVialSetting = async (setting: SampleSetting) => {
+    setSampleVialSettings(prev => prev.map(s => s.sr_no === setting.sr_no ? setting : s));
+    await supabase.from('sample_vial_settings').update({
+      sample_name: setting.sample_name,
+      sample_type: setting.sample_type,
+      container_type: setting.container_type
+    }).eq('sr_no', setting.sr_no);
+  };
+
+  const deleteSampleVialSetting = async (srNo: number) => {
+    setSampleVialSettings(prev => prev.filter(s => s.sr_no !== srNo));
+    await supabase.from('sample_vial_settings').delete().eq('sr_no', srNo);
+  };
+
+  const toggleArchivePatient = async (id: string) => {
+    setArchivedPatientIds(prev => {
+      const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+      localStorage.setItem('dlabs_archived_patients', JSON.stringify(next));
+      return next;
+    });
   };
 
   const searchGlobal = (query: string) => {
@@ -1254,7 +2237,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const lower = query.toLowerCase().trim();
     const results: Array<any> = [];
 
-    // Search patients by name or phone or ID and MRN
     patients.forEach(p => {
       if (
         p.patient_name.toLowerCase().includes(lower) || 
@@ -1273,7 +2255,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Search encounters by accession_no
     encounters.forEach(e => {
       if (e.accession_no.toLowerCase().includes(lower)) {
         const patient = patients.find(p => p.patient_id === e.patient_id);
@@ -1288,7 +2269,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Search bills
     billSettlements.forEach(b => {
       if (b.bill_id.toLowerCase().includes(lower) || b.patient_details.name.toLowerCase().includes(lower)) {
         results.push({
@@ -1302,7 +2282,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Search tests
     testCatalog.forEach(t => {
       if (t.test_name.toLowerCase().includes(lower) || t.test_code.toLowerCase().includes(lower)) {
         results.push({
@@ -1316,7 +2295,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       }
     });
 
-    // Search B2B partners
     b2bPartners.forEach(b => {
       if (b.partner_name.toLowerCase().includes(lower) || b.partner_id.toLowerCase().includes(lower)) {
         results.push({
@@ -1356,10 +2334,18 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       testResults,
       resultParameters,
       patientCases,
-      setPatientCases,
+      setPatientCases: customSetPatientCases,
+
+      appointments,
+      referringDoctors,
+      satelliteCenters,
+      sampleVialSettings,
+      archivedPatientIds,
 
       activeSubView,
       setActiveSubView,
+
+      isLoading,
 
       updateLabProfile,
       addTest,
@@ -1389,6 +2375,15 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       updateCenterResources,
       addSystemUser,
       updateSystemIntegrations,
+
+      addAppointment,
+      updateAppointmentStatus,
+      addReferringDoctor,
+      addSatelliteCenter,
+      addSampleVialSetting,
+      updateSampleVialSetting,
+      deleteSampleVialSetting,
+      toggleArchivePatient,
 
       searchGlobal,
       currentLanguage,
