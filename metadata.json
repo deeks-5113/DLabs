@@ -1,0 +1,6 @@
+{
+  "name": "DLabs LIMS",
+  "description": "Streamlined Laboratory Information Management System (LIMS) prototype with Admin and Registration modules.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
