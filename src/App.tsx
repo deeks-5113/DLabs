@@ -7,9 +7,10 @@ import { AdminModule } from './components/AdminModule';
 import { RegistrationModule } from './components/RegistrationModule';
 import { AccessionModule } from './components/AccessionModule';
 import { OperationsModule } from './components/OperationsModule';
+import { FinanceModule } from './components/FinanceModule';
 
 function AppContent() {
-  const [activeModule, setActiveModule] = useState<'dashboard' | 'registration' | 'accession' | 'operations' | 'admin'>('dashboard');
+  const [activeModule, setActiveModule] = useState<'dashboard' | 'registration' | 'accession' | 'operations' | 'finance' | 'admin'>('dashboard');
   const { setActiveSubView, activeSubView, isLoading } = useApp();
   
   // Extra linking states
@@ -135,6 +136,9 @@ function AppContent() {
             )}
             {activeModule === 'operations' && (
               <OperationsModule />
+            )}
+            {activeModule === 'finance' && (
+              <FinanceModule />
             )}
             {activeModule === 'admin' && (
               <AdminModule 

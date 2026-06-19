@@ -1,10 +1,10 @@
 import React from 'react';
 // @ts-ignore
 import dlabsLogo from '../../Dlabs_102.svg';
-import { 
-  LayoutDashboard, 
-  Settings, 
-  UserPlus, 
+import {
+  LayoutDashboard,
+  Settings,
+  UserPlus,
   ShieldCheck,
   ChevronDown,
   ChevronRight,
@@ -36,15 +36,15 @@ import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
 
 interface SidebarProps {
-  currentModule: 'dashboard' | 'registration' | 'accession' | 'operations' | 'admin';
-  onChangeModule: (module: 'dashboard' | 'registration' | 'accession' | 'operations' | 'admin') => void;
+  currentModule: 'dashboard' | 'registration' | 'accession' | 'operations' | 'finance' | 'admin';
+  onChangeModule: (module: 'dashboard' | 'registration' | 'accession' | 'operations' | 'finance' | 'admin') => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule }) => {
   const { activeSubView, setActiveSubView, encounters, samples, patientCases, currentLanguage } = useApp();
   const t = translations[currentLanguage];
 
-  const [expandedModule, setExpandedModule] = React.useState<'registration' | 'accession' | 'operations' | 'admin' | null>(
+  const [expandedModule, setExpandedModule] = React.useState<'registration' | 'accession' | 'operations' | 'finance' | 'admin' | null>(
     currentModule !== 'dashboard' ? currentModule : null
   );
 
@@ -54,7 +54,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
     }
   }, [currentModule]);
 
-  const handleModuleClick = (module: 'dashboard' | 'registration' | 'accession' | 'operations' | 'admin') => {
+  const handleModuleClick = (module: 'dashboard' | 'registration' | 'accession' | 'operations' | 'finance' | 'admin') => {
     if (module === 'dashboard') {
       onChangeModule(module);
       setExpandedModule(null);
@@ -74,6 +74,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
         setActiveSubView('accession-pending-accession');
       } else if (module === 'operations') {
         setActiveSubView('ops-dashboard');
+      } else if (module === 'finance') {
+        setActiveSubView('finance-dashboard');
       }
     }
   };
@@ -104,7 +106,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
     const activeReruns = patientCases.filter(p => p.category === 'Active Reruns').length;
     const completed = patientCases.filter(p => p.category === 'Completed').length;
     const partiallySigned = patientCases.filter(p => p.category === 'Partially Signed').length;
-    
+
     const emergencyCount = patientCases.filter(p => p.category === 'Emergency Reports').length;
     const criticalCount = patientCases.filter(p => p.category === 'Critical Reports').length;
     const tatExceeded = patientCases.filter(p => p.category === 'TAT Exceeded').length;
@@ -159,6 +161,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
     { id: 'advanced-search', label: 'Advanced Search', icon: Database },
   ];
 
+  const financeSubitems = [
+    { id: 'finance-dashboard', label: 'Finance Dashboard', icon: LayoutDashboard },
+    { id: 'finance-bill-list', label: 'Bill List', icon: Receipt },
+    { id: 'finance-b2b', label: 'B2B & Referral Management', icon: Building2 },
+  ];
+
   const adminSubitems = [
     { id: 'referral-mgmt', label: 'Referral Management', icon: UserCheck2 },
     { id: 'org-mgmt', label: 'Organisation Management', icon: Building2 },
@@ -186,16 +194,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
       {/* Navigation Layout */}
       <nav className="flex-1 px-4 py-5 space-y-1.5 overflow-y-auto">
         <p className="px-3 text-[10px] font-bold text-[#9E9E96] uppercase tracking-widest mb-3">Core Subsystems</p>
-        
+
         {/* Dashboard Link */}
         <button
           id="sidebar-link-dashboard"
           onClick={() => handleModuleClick('dashboard')}
-          className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
-            currentModule === 'dashboard'
+          className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'dashboard'
               ? 'bg-brand-primary text-white shadow-md font-bold'
               : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-          }`}
+            }`}
         >
           <LayoutDashboard size={18} className={currentModule === 'dashboard' ? 'text-white' : 'text-[#6B6B66]'} />
           <div className="flex-1 min-w-0">
@@ -209,11 +216,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
           <button
             id="sidebar-link-registration"
             onClick={() => handleModuleClick('registration')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
-              currentModule === 'registration'
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'registration'
                 ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
                 : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-            }`}
+              }`}
           >
             <div className="flex items-center space-x-3">
               <UserPlus size={18} className={currentModule === 'registration' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
@@ -233,11 +239,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     key={sub.id}
                     id={`sublink-${sub.id}`}
                     onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
-                      isSubActive
+                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
                         ? 'bg-brand-primary text-white font-bold shadow-xs'
                         : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                    }`}
+                      }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
                     <span className="truncate">{sub.label}</span>
@@ -253,11 +258,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
           <button
             id="sidebar-link-accession"
             onClick={() => handleModuleClick('accession')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
-              currentModule === 'accession'
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'accession'
                 ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
                 : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-            }`}
+              }`}
           >
             <div className="flex items-center space-x-3">
               <Barcode size={18} className={currentModule === 'accession' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
@@ -277,11 +281,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     key={sub.id}
                     id={`sublink-${sub.id}`}
                     onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
-                      isSubActive
+                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
                         ? 'bg-brand-primary text-white font-bold shadow-xs'
                         : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                    }`}
+                      }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
                     <span className="truncate">{sub.label}</span>
@@ -297,15 +300,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
           <button
             id="sidebar-link-operations"
             onClick={() => handleModuleClick('operations')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
-              currentModule === 'operations'
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'operations'
                 ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
                 : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-            }`}
+              }`}
           >
             <div className="flex items-center space-x-3">
               <FlaskConical size={18} className={currentModule === 'operations' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
-              <span className="text-sm">Clinical Floor</span>
+              <span className="text-sm">Operations</span>
             </div>
             {expandedModule === 'operations' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
           </button>
@@ -321,11 +323,52 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     key={sub.id}
                     id={`sublink-${sub.id}`}
                     onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
-                      isSubActive
+                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
                         ? 'bg-brand-primary text-white font-bold shadow-xs'
                         : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                    }`}
+                      }`}
+                  >
+                    <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
+                    <span className="truncate">{sub.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Finance Subsystem Accordion */}
+        <div className="space-y-1">
+          <button
+            id="sidebar-link-finance"
+            onClick={() => handleModuleClick('finance')}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'finance'
+                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+              }`}
+          >
+            <div className="flex items-center space-x-3">
+              <Receipt size={18} className={currentModule === 'finance' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
+              <span className="text-sm">Finance</span>
+            </div>
+            {expandedModule === 'finance' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+          </button>
+
+          {expandedModule === 'finance' && (
+            <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
+              {financeSubitems.map((sub) => {
+                const SubIcon = sub.icon;
+                const isSubActive = activeSubView === sub.id;
+
+                return (
+                  <button
+                    key={sub.id}
+                    id={`sublink-${sub.id}`}
+                    onClick={() => setActiveSubView(sub.id)}
+                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
+                        ? 'bg-brand-primary text-white font-bold shadow-xs'
+                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                      }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
                     <span className="truncate">{sub.label}</span>
@@ -341,11 +384,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
           <button
             id="sidebar-link-admin"
             onClick={() => handleModuleClick('admin')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${
-              currentModule === 'admin'
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'admin'
                 ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
                 : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-            }`}
+              }`}
           >
             <div className="flex items-center space-x-3">
               <Settings size={18} className={currentModule === 'admin' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
@@ -365,11 +407,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
                     key={sub.id}
                     id={`sublink-${sub.id}`}
                     onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${
-                      isSubActive
+                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
                         ? 'bg-brand-primary text-white font-bold shadow-xs'
                         : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                    }`}
+                      }`}
                   >
                     <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
                     <span className="truncate">{sub.label}</span>

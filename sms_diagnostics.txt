@@ -1,0 +1,9 @@
+Send message after immediate registration.
+After report ccompletion , when he do signed in , when amount is paid , send him a report automaticcally
+If payment is not done , then we will print it manually.
+Send birthday wishes on his DOB or festival wishes accordingly , 
+Biometric sync from the scanner to the HRMS portal , 
+Add a payment link to it , as well when we send the complete registration message to complete the payment.
+Make it customizable to backdate and edit the data to edit on the printout or the billing data.
+Take time automatically from the system.
+Admin having access or getting message , when each patient billing is done.
