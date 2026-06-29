@@ -71,7 +71,8 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
     appointments,
     archivedPatientIds,
     addAppointment,
-    toggleArchivePatient
+    toggleArchivePatient,
+    currentUser
   } = useApp();
 
   // -------------------------
@@ -407,7 +408,7 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
   const discountVal = selectedPartner ? (grossTotal * selectedPartner.discount_percentage) / 100 : 0;
   const grandPayable = grossTotal - discountVal;
 
-  const validateAndSubmit = () => {
+  const validateAndSubmit = async () => {
     const errs: { [key: string]: string } = {};
     if (!fullName.trim()) errs.name = "Full Patient Name is required";
     if (!contactNumber.trim()) errs.phone = "Phone number is required";
@@ -460,9 +461,8 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
       mode_of_transport: modeOfTransport
     };
 
-    const uniqueSuffix = 100000 + patients.length + 5;
     const targetPatient: Patient = {
-      patient_id: patientId || `P-${uniqueSuffix}`,
+      patient_id: patientId || 'pending',
       patient_type: patientType,
       mrn: mrn || `MRN-${Math.floor(100000 + Math.random() * 900000)}`,
       national_id: nationalId,
@@ -482,12 +482,13 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
     };
 
     // Add Patient
-    addPatient(targetPatient);
+    const createdPatient = await addPatient(targetPatient);
+    setPatientId(createdPatient.patient_id);
 
     // Call generate encounter
     const tCodes = selectedTests.map(t => t.test_code);
     const newEnc = createEncounter(
-      targetPatient.patient_id,
+      createdPatient.patient_id,
       selectedPartnerId || null,
       tCodes,
       grandPayable,
@@ -609,7 +610,7 @@ export const RegistrationModule: React.FC<RegistrationModuleProps> = ({ initialP
             {activeSubView === 'operational-status' && "LIMS Intake Operations Line"}
             {activeSubView === 'advanced-search' && "Multi-Criteria Advanced Search"}
           </h2>
-          <p className="text-xs text-[#6B6B66] mt-0.5">Secure clinical session • Operator: ops_lab_admin</p>
+          <p className="text-xs text-[#6B6B66] mt-0.5">Secure clinical session • Operator: {currentUser?.name || 'ops_lab_admin'}</p>
         </div>
         <div className="bg-[#5A5A40]/10 text-[#5A5A40] text-[10px] font-bold font-mono px-3 py-1.5 rounded-lg border border-[#5A5A40]/20">
           SECURE CHANNEL 01

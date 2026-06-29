@@ -9,7 +9,7 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ currentModule, onNavigateResult }) => {
-  const { searchGlobal, currentLanguage, setLanguage } = useApp();
+  const { searchGlobal, currentLanguage, setLanguage, currentUser } = useApp();
   const t = translations[currentLanguage];
   
   const [searchQuery, setSearchQuery] = useState('');
@@ -34,15 +34,29 @@ export const Header: React.FC<HeaderProps> = ({ currentModule, onNavigateResult 
 
   // Sync search results
   useEffect(() => {
+    let active = true;
     if (searchQuery.trim().length > 0) {
-      const results = searchGlobal(searchQuery);
-      setSearchResults(results);
-      setIsDropdownOpen(true);
+      Promise.resolve(searchGlobal(searchQuery)).then(results => {
+        if (active) {
+          const isAdmin = currentUser?.userRole === 'Super Administrator' || currentUser?.userRole === 'Admin';
+          let filtered = results;
+          if (currentUser?.userRole === 'Employee') {
+            filtered = results.filter(r => r.targetModule === 'registration' && (!r.payload?.subview || r.payload.subview === 'billing-history' || r.payload.subview === 'registration-billing'));
+          } else if (!isAdmin) {
+            filtered = results.filter(r => r.targetModule !== 'admin');
+          }
+          setSearchResults(filtered);
+          setIsDropdownOpen(true);
+        }
+      });
     } else {
       setSearchResults([]);
       setIsDropdownOpen(false);
     }
-  }, [searchQuery, searchGlobal]);
+    return () => {
+      active = false;
+    };
+  }, [searchQuery, searchGlobal, currentUser]);
 
   // Handle outside clicks to close the search dropdown
   useEffect(() => {
@@ -234,11 +248,11 @@ export const Header: React.FC<HeaderProps> = ({ currentModule, onNavigateResult 
         {/* User Account / Operator Credentials badge */}
         <div id="operator-badge" className="flex items-center space-x-3 border-l border-gray-200 pl-6">
           <div className="text-right">
-            <p className="text-sm font-bold text-brand-dark">Operator Terminal</p>
-            <p className="text-[9px] font-mono text-[#9E9E96] tracking-tight leading-none mt-0.5">deekshithsistu@gmail.com</p>
+            <p className="text-sm font-bold text-brand-dark">{currentUser?.name || 'Operator Terminal'}</p>
+            <p className="text-[9px] font-mono text-[#9E9E96] tracking-tight leading-none mt-0.5">{currentUser?.username ? `${currentUser.username}@dlabs.com` : 'deekshithsistu@gmail.com'}</p>
           </div>
           <div className="w-10 h-10 rounded-full bg-[#E5E2D9] flex items-center justify-center text-brand-primary font-bold">
-            OT
+            {currentUser?.name ? currentUser.name.split(' ').map(n => n[0]).join('').toUpperCase() : 'OT'}
           </div>
         </div>
 

@@ -30,7 +30,8 @@ import {
   Barcode,
   FlaskConical,
   Clock,
-  AlertTriangle
+  AlertTriangle,
+  Mail
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { translations } from '../translations';
@@ -41,8 +42,10 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule }) => {
-  const { activeSubView, setActiveSubView, encounters, samples, patientCases, currentLanguage } = useApp();
+  const { activeSubView, setActiveSubView, encounters, samples, patientCases, currentLanguage, currentUser } = useApp();
   const t = translations[currentLanguage];
+  const isAdmin = currentUser?.userRole === 'Super Administrator' || currentUser?.userRole === 'Admin';
+  const isEmployee = currentUser?.userRole === 'Employee';
 
   const [expandedModule, setExpandedModule] = React.useState<'registration' | 'accession' | 'operations' | 'finance' | 'admin' | null>(
     currentModule !== 'dashboard' ? currentModule : null
@@ -75,7 +78,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
       } else if (module === 'operations') {
         setActiveSubView('ops-dashboard');
       } else if (module === 'finance') {
-        setActiveSubView('finance-dashboard');
+        setActiveSubView(isAdmin ? 'finance-dashboard' : 'finance-bill-list');
       }
     }
   };
@@ -161,13 +164,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
     { id: 'advanced-search', label: 'Advanced Search', icon: Database },
   ];
 
+  const filteredRegistrationSubitems = isEmployee
+    ? registrationSubitems.filter(sub => sub.id === 'registration-billing' || sub.id === 'billing-history')
+    : registrationSubitems;
+
   const financeSubitems = [
     { id: 'finance-dashboard', label: 'Finance Dashboard', icon: LayoutDashboard },
     { id: 'finance-bill-list', label: 'Bill List', icon: Receipt },
     { id: 'finance-b2b', label: 'B2B & Referral Management', icon: Building2 },
   ];
 
+  const filteredFinanceSubitems = isAdmin
+    ? financeSubitems
+    : financeSubitems.filter(sub => sub.id === 'finance-bill-list');
+
   const adminSubitems = [
+    { id: 'admin-inbox', label: 'Admin Inbox', icon: Mail },
     { id: 'referral-mgmt', label: 'Referral Management', icon: UserCheck2 },
     { id: 'org-mgmt', label: 'Organisation Management', icon: Building2 },
     { id: 'profile-report-mgmt', label: 'Profile & Report Management', icon: Award },
@@ -196,20 +208,22 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
         <p className="px-3 text-[10px] font-bold text-[#9E9E96] uppercase tracking-widest mb-3">Core Subsystems</p>
 
         {/* Dashboard Link */}
-        <button
-          id="sidebar-link-dashboard"
-          onClick={() => handleModuleClick('dashboard')}
-          className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'dashboard'
-              ? 'bg-brand-primary text-white shadow-md font-bold'
-              : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-            }`}
-        >
-          <LayoutDashboard size={18} className={currentModule === 'dashboard' ? 'text-white' : 'text-[#6B6B66]'} />
-          <div className="flex-1 min-w-0">
-            <span className="text-sm block">Dashboard</span>
-          </div>
-          {currentModule === 'dashboard' && <span className="absolute right-0 top-3 bottom-3 w-1 bg-white rounded-l-md" />}
-        </button>
+        {!isEmployee && (
+          <button
+            id="sidebar-link-dashboard"
+            onClick={() => handleModuleClick('dashboard')}
+            className={`w-full flex items-center space-x-3 px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'dashboard'
+                ? 'bg-brand-primary text-white shadow-md font-bold'
+                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+              }`}
+          >
+            <LayoutDashboard size={18} className={currentModule === 'dashboard' ? 'text-white' : 'text-[#6B6B66]'} />
+            <div className="flex-1 min-w-0">
+              <span className="text-sm block">Dashboard</span>
+            </div>
+            {currentModule === 'dashboard' && <span className="absolute right-0 top-3 bottom-3 w-1 bg-white rounded-l-md" />}
+          </button>
+        )}
 
         {/* Registration Subsystem Accordion */}
         <div className="space-y-1">
@@ -230,7 +244,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
 
           {expandedModule === 'registration' && (
             <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-72 overflow-y-auto">
-              {registrationSubitems.map((sub) => {
+              {filteredRegistrationSubitems.map((sub) => {
                 const SubIcon = sub.icon;
                 const isSubActive = activeSubView === sub.id;
 
@@ -254,172 +268,180 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentModule, onChangeModule 
         </div>
 
         {/* Accession Subsystem Accordion */}
-        <div className="space-y-1">
-          <button
-            id="sidebar-link-accession"
-            onClick={() => handleModuleClick('accession')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'accession'
-                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-              }`}
-          >
-            <div className="flex items-center space-x-3">
-              <Barcode size={18} className={currentModule === 'accession' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
-              <span className="text-sm">Sample Accession</span>
-            </div>
-            {expandedModule === 'accession' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
+        {!isEmployee && (
+          <div className="space-y-1">
+            <button
+              id="sidebar-link-accession"
+              onClick={() => handleModuleClick('accession')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'accession'
+                  ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                  : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                }`}
+            >
+              <div className="flex items-center space-x-3">
+                <Barcode size={18} className={currentModule === 'accession' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
+                <span className="text-sm">Sample Accession</span>
+              </div>
+              {expandedModule === 'accession' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
 
-          {expandedModule === 'accession' && (
-            <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-72 overflow-y-auto">
-              {accessionSubitems.map((sub) => {
-                const SubIcon = sub.icon;
-                const isSubActive = activeSubView === sub.id;
+            {expandedModule === 'accession' && (
+              <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-72 overflow-y-auto">
+                {accessionSubitems.map((sub) => {
+                  const SubIcon = sub.icon;
+                  const isSubActive = activeSubView === sub.id;
 
-                return (
-                  <button
-                    key={sub.id}
-                    id={`sublink-${sub.id}`}
-                    onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
-                        ? 'bg-brand-primary text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                      }`}
-                  >
-                    <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
-                    <span className="truncate">{sub.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  return (
+                    <button
+                      key={sub.id}
+                      id={`sublink-${sub.id}`}
+                      onClick={() => setActiveSubView(sub.id)}
+                      className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
+                          ? 'bg-brand-primary text-white font-bold shadow-xs'
+                          : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                        }`}
+                    >
+                      <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
+                      <span className="truncate">{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Operations Subsystem Accordion */}
-        <div className="space-y-1">
-          <button
-            id="sidebar-link-operations"
-            onClick={() => handleModuleClick('operations')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'operations'
-                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-              }`}
-          >
-            <div className="flex items-center space-x-3">
-              <FlaskConical size={18} className={currentModule === 'operations' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
-              <span className="text-sm">Operations</span>
-            </div>
-            {expandedModule === 'operations' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
+        {!isEmployee && (
+          <div className="space-y-1">
+            <button
+              id="sidebar-link-operations"
+              onClick={() => handleModuleClick('operations')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'operations'
+                  ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                  : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                }`}
+            >
+              <div className="flex items-center space-x-3">
+                <FlaskConical size={18} className={currentModule === 'operations' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
+                <span className="text-sm">Operations</span>
+              </div>
+              {expandedModule === 'operations' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
 
-          {expandedModule === 'operations' && (
-            <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
-              {operationsSubitems.map((sub) => {
-                const SubIcon = sub.icon;
-                const isSubActive = activeSubView === sub.id;
+            {expandedModule === 'operations' && (
+              <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
+                {operationsSubitems.map((sub) => {
+                  const SubIcon = sub.icon;
+                  const isSubActive = activeSubView === sub.id;
 
-                return (
-                  <button
-                    key={sub.id}
-                    id={`sublink-${sub.id}`}
-                    onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
-                        ? 'bg-brand-primary text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                      }`}
-                  >
-                    <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
-                    <span className="truncate">{sub.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  return (
+                    <button
+                      key={sub.id}
+                      id={`sublink-${sub.id}`}
+                      onClick={() => setActiveSubView(sub.id)}
+                      className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
+                          ? 'bg-brand-primary text-white font-bold shadow-xs'
+                          : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                        }`}
+                    >
+                      <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
+                      <span className="truncate">{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Finance Subsystem Accordion */}
-        <div className="space-y-1">
-          <button
-            id="sidebar-link-finance"
-            onClick={() => handleModuleClick('finance')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'finance'
-                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-              }`}
-          >
-            <div className="flex items-center space-x-3">
-              <Receipt size={18} className={currentModule === 'finance' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
-              <span className="text-sm">Finance</span>
-            </div>
-            {expandedModule === 'finance' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
+        {(isAdmin || !isEmployee) && (
+          <div className="space-y-1">
+            <button
+              id="sidebar-link-finance"
+              onClick={() => handleModuleClick('finance')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'finance'
+                  ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                  : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                }`}
+            >
+              <div className="flex items-center space-x-3">
+                <Receipt size={18} className={currentModule === 'finance' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
+                <span className="text-sm">Finance</span>
+              </div>
+              {expandedModule === 'finance' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
 
-          {expandedModule === 'finance' && (
-            <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
-              {financeSubitems.map((sub) => {
-                const SubIcon = sub.icon;
-                const isSubActive = activeSubView === sub.id;
+            {expandedModule === 'finance' && (
+              <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
+                {filteredFinanceSubitems.map((sub) => {
+                  const SubIcon = sub.icon;
+                  const isSubActive = activeSubView === sub.id;
 
-                return (
-                  <button
-                    key={sub.id}
-                    id={`sublink-${sub.id}`}
-                    onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
-                        ? 'bg-brand-primary text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                      }`}
-                  >
-                    <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
-                    <span className="truncate">{sub.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  return (
+                    <button
+                      key={sub.id}
+                      id={`sublink-${sub.id}`}
+                      onClick={() => setActiveSubView(sub.id)}
+                      className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
+                          ? 'bg-brand-primary text-white font-bold shadow-xs'
+                          : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                        }`}
+                    >
+                      <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
+                      <span className="truncate">{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Admin Subsystem Accordion */}
-        <div className="space-y-1">
-          <button
-            id="sidebar-link-admin"
-            onClick={() => handleModuleClick('admin')}
-            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'admin'
-                ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
-                : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-              }`}
-          >
-            <div className="flex items-center space-x-3">
-              <Settings size={18} className={currentModule === 'admin' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
-              <span className="text-sm">Admin Control</span>
-            </div>
-            {expandedModule === 'admin' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-          </button>
+        {isAdmin && (
+          <div className="space-y-1">
+            <button
+              id="sidebar-link-admin"
+              onClick={() => handleModuleClick('admin')}
+              className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl cursor-pointer text-left transition-all duration-150 relative group ${currentModule === 'admin'
+                  ? 'bg-brand-primary/10 text-brand-primary font-bold border border-brand-primary/25'
+                  : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                }`}
+            >
+              <div className="flex items-center space-x-3">
+                <Settings size={18} className={currentModule === 'admin' ? 'text-brand-primary' : 'text-[#6B6B66]'} />
+                <span className="text-sm">Admin Control</span>
+              </div>
+              {expandedModule === 'admin' ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </button>
 
-          {expandedModule === 'admin' && (
-            <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
-              {adminSubitems.map((sub) => {
-                const SubIcon = sub.icon;
-                const isSubActive = activeSubView === sub.id;
+            {expandedModule === 'admin' && (
+              <div className="pl-6.5 pr-1 py-1 space-y-1 bg-[#FAF9F6]/40 rounded-xl border border-[#E5E2D9]/40 mt-1 max-h-80 overflow-y-auto">
+                {adminSubitems.map((sub) => {
+                  const SubIcon = sub.icon;
+                  const isSubActive = activeSubView === sub.id;
 
-                return (
-                  <button
-                    key={sub.id}
-                    id={`sublink-${sub.id}`}
-                    onClick={() => setActiveSubView(sub.id)}
-                    className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
-                        ? 'bg-brand-primary text-white font-bold shadow-xs'
-                        : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
-                      }`}
-                  >
-                    <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
-                    <span className="truncate">{sub.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-        </div>
+                  return (
+                    <button
+                      key={sub.id}
+                      id={`sublink-${sub.id}`}
+                      onClick={() => setActiveSubView(sub.id)}
+                      className={`w-full flex items-center space-x-2 px-3 py-2 rounded-lg cursor-pointer text-left text-xs transition-all duration-150 ${isSubActive
+                          ? 'bg-brand-primary text-white font-bold shadow-xs'
+                          : 'text-[#6B6B66] hover:bg-[#F3F1ED] hover:text-brand-dark'
+                        }`}
+                    >
+                      <SubIcon size={14} className={isSubActive ? 'text-white' : 'text-[#9E9E96]'} />
+                      <span className="truncate">{sub.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </nav>
 
       {/* Operator Zone Badge */}

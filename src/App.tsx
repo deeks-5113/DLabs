@@ -8,10 +8,34 @@ import { RegistrationModule } from './components/RegistrationModule';
 import { AccessionModule } from './components/AccessionModule';
 import { OperationsModule } from './components/OperationsModule';
 import { FinanceModule } from './components/FinanceModule';
+import { LoginView } from './components/LoginView';
 
 function AppContent() {
-  const [activeModule, setActiveModule] = useState<'dashboard' | 'registration' | 'accession' | 'operations' | 'finance' | 'admin'>('dashboard');
-  const { setActiveSubView, activeSubView, isLoading } = useApp();
+  const { setActiveSubView, activeSubView, isLoading, currentUser } = useApp();
+  const isAdmin = currentUser?.userRole === 'Super Administrator' || currentUser?.userRole === 'Admin';
+
+  const [activeModule, setActiveModule] = useState<'dashboard' | 'registration' | 'accession' | 'operations' | 'finance' | 'admin'>(() => {
+    if (currentUser?.userRole === 'Employee') {
+      return 'registration';
+    }
+    return 'dashboard';
+  });
+
+  useEffect(() => {
+    if (currentUser?.userRole === 'Employee') {
+      if (activeModule !== 'registration') {
+        setActiveModule('registration');
+      }
+      if (activeSubView !== 'registration-billing' && activeSubView !== 'billing-history') {
+        setActiveSubView('registration-billing');
+      }
+    } else if (!isAdmin && currentUser) {
+      if (activeModule === 'finance' && activeSubView !== 'finance-bill-list') {
+        setActiveSubView('finance-bill-list');
+      }
+    }
+  }, [currentUser, isAdmin, activeModule, activeSubView, setActiveSubView]);
+
   
   // Extra linking states
   const [adminInitialTab, setAdminInitialTab] = useState<'profile' | 'tests' | 'partners'>('profile');
@@ -84,6 +108,10 @@ function AppContent() {
     }
   };
 
+  if (!currentUser) {
+    return <LoginView />;
+  }
+
   if (isLoading) {
     return (
       <div className="flex h-screen w-screen items-center justify-center bg-[#FAF9F6] flex-col gap-4">
@@ -120,7 +148,7 @@ function AppContent() {
         {/* Module Render Routing */}
         <main id="main-viewport" className="flex-1 overflow-y-auto p-8 bg-brand-bg">
           <div className="max-w-7xl mx-auto w-full">
-            {activeModule === 'dashboard' && (
+            {activeModule === 'dashboard' && currentUser?.userRole !== 'Employee' && (
               <DashboardView 
                 onNavigate={handleQuickNavigate} 
                 highlightedAccession={dashboardHighlightedAccession} 
@@ -131,16 +159,16 @@ function AppContent() {
                 initialPhone={registrationInitialPhone} 
               />
             )}
-            {activeModule === 'accession' && (
+            {activeModule === 'accession' && currentUser?.userRole !== 'Employee' && (
               <AccessionModule />
             )}
-            {activeModule === 'operations' && (
+            {activeModule === 'operations' && currentUser?.userRole !== 'Employee' && (
               <OperationsModule />
             )}
-            {activeModule === 'finance' && (
+            {activeModule === 'finance' && currentUser?.userRole !== 'Employee' && (
               <FinanceModule />
             )}
-            {activeModule === 'admin' && (
+            {activeModule === 'admin' && currentUser?.userRole !== 'Employee' && (
               <AdminModule 
                 initialTab={adminInitialTab} 
                 filterQuery={adminFilterQuery} 

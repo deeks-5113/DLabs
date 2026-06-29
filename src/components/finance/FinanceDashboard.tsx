@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
 import { TrendingUp, IndianRupee, CreditCard, Clock, Activity } from 'lucide-react';
+import { OrganisationRevenue } from './OrganisationRevenue';
 
 export const FinanceDashboard: React.FC = () => {
   const { billSettlements } = useApp();
@@ -104,6 +105,7 @@ export const FinanceDashboard: React.FC = () => {
         </div>
       </div>
 
+      <OrganisationRevenue />
     </div>
   );
 };

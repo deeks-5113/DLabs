@@ -209,6 +209,7 @@ export interface SystemUser {
   userRole: string;
   defaultLoginSection: string;
   lastActivity: string;
+  isVisible?: string;
 }
 
 export interface SystemIntegrations {
@@ -330,4 +331,20 @@ export interface SampleSetting {
   container_type: string;
 }
 
+export type UserRole = 'admin' | 'staff';
+
+export interface User {
+  username: string;
+  name: string;
+  userRole: string;
+  defaultLoginSection: string;
+  lastActivity: string;
+}
+
+export interface AdminNotification {
+  id: string;
+  message: string;
+  timestamp: string;
+  is_read: boolean;
+}
 

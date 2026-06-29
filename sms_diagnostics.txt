@@ -7,3 +7,7 @@ Add a payment link to it , as well when we send the complete registration messag
 Make it customizable to backdate and edit the data to edit on the printout or the billing data.
 Take time automatically from the system.
 Admin having access or getting message , when each patient billing is done.
+Remember the number of containers and inventory of the syringes or containers used.
+Make it automatic to show how many samples are pending or how many are completed in a day.
+Reports backtime ,put a tap  time fixed on reports , reminder to tell the department the pending reports.
+Giving the total number of positive andd nnegative cases in a day for Dengue or any other diseases like this
